@@ -79,6 +79,13 @@ export function ProjectsCenter() {
     }
   };
 
+  const formatUrl = (url: string) => {
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      return 'https://' + url;
+    }
+    return url;
+  };
+
   return (
     <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg p-6 border border-slate-700">
       <div className="flex items-center justify-between mb-4">
@@ -159,7 +166,7 @@ export function ProjectsCenter() {
                 {project.description && <p className="text-slate-400 text-sm mb-2">{project.description}</p>}
                 {project.url && (
                   <a
-                    href={project.url}
+                    href={formatUrl(project.url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-400 hover:text-blue-300 text-sm"
