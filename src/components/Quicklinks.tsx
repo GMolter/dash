@@ -56,6 +56,13 @@ export function Quicklinks() {
     }
   };
 
+  const formatUrl = (url: string) => {
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      return 'https://' + url;
+    }
+    return url;
+  };
+
   return (
     <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg p-6 border border-slate-700">
       <div className="flex items-center justify-between mb-4">
@@ -103,7 +110,7 @@ export function Quicklinks() {
             className="group relative bg-slate-900/50 hover:bg-slate-900/80 rounded-lg p-3 transition-colors"
           >
             <a
-              href={link.url}
+              href={formatUrl(link.url)}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 text-blue-400 hover:text-blue-300"
