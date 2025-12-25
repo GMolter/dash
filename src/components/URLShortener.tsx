@@ -78,6 +78,13 @@ export function URLShortener() {
     return `${window.location.origin}/s/${shortCode}`;
   };
 
+  const formatUrl = (url: string) => {
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      return 'https://' + url;
+    }
+    return url;
+  };
+
   return (
     <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg p-6 border border-slate-700">
       <div className="flex items-center justify-between mb-4">
@@ -143,7 +150,7 @@ export function URLShortener() {
               </div>
               <div className="flex gap-2">
                 <a
-                  href={url.target_url}
+                  href={formatUrl(url.target_url)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
