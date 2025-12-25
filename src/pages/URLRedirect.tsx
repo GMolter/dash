@@ -26,7 +26,13 @@ export function URLRedirect({ shortCode }: Props) {
         .update({ clicks: data.clicks + 1 })
         .eq('short_code', shortCode);
 
-      window.location.href = data.target_url;
+      // Fix: Ensure URL has a protocol
+      let targetUrl = data.target_url;
+      if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+        targetUrl = 'https://' + targetUrl;
+      }
+
+      window.location.href = targetUrl;
     };
 
     redirect();
