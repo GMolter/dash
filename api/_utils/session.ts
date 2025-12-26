@@ -13,7 +13,8 @@ function b64url(input: Buffer | string) {
 }
 
 function hmac(data: string, secret: string) {
-  return b64url(crypto.createHmac("sha256").update(data).digest());
+  // ✅ secret MUST be the 2nd arg
+  return b64url(crypto.createHmac("sha256", secret).update(data).digest());
 }
 
 export function makeSessionCookie(secret: string) {
@@ -56,6 +57,7 @@ export function isAuthed(req: any, secret: string) {
   const sig = parts[2];
 
   const expected = hmac(payload, secret);
+
   // avoid timing leaks
   if (sig.length !== expected.length) return false;
   if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return false;
