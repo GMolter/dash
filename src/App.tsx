@@ -12,15 +12,17 @@ import { SecretView } from './pages/SecretView';
 import { PasteView } from './pages/PasteView';
 import { PasteList } from './pages/PasteList';
 import { NotFound } from './pages/NotFound';
+import Admin from './pages/Admin';
 import { Layout, Link2, Folder, Zap, Link as LinkIcon, Shield, QrCode, FileText } from 'lucide-react';
 
 type Module = 'quicklinks' | 'projects' | 'triggers' | 'url' | 'secrets' | 'qr' | 'pastebin' | 'all';
 
-type Route = 
+type Route =
   | { type: 'dashboard'; module: Module }
   | { type: 'secret'; code: string }
   | { type: 'paste'; code: string }
   | { type: 'paste-list' }
+  | { type: 'admin' }
   | { type: 'short-url'; code: string }
   | { type: '404' };
 
@@ -43,8 +45,7 @@ function App() {
       const code = path.substring(7);
       setRoute({ type: 'paste', code });
     } else if (path === '/admin') {
-      // Admin page - will implement later
-      setRoute({ type: 'dashboard', module: 'all' });
+      setRoute({ type: 'admin' });
     } else {
       // Unknown route - treat as potential short URL
       const code = path.substring(1); // Remove leading slash
@@ -65,6 +66,8 @@ function App() {
     return <PasteView pasteCode={route.code} />;
   } else if (route.type === 'paste-list') {
     return <PasteList />;
+  } else if (route.type === 'admin') {
+    return <Admin />;
   } else if (route.type === '404') {
     return <NotFound />;
   }
@@ -102,50 +105,75 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen relative">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
       <AnimatedBackground />
 
-      <div className="relative z-10">
-        <header className="border-b border-slate-700 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-20">
-          <div className="max-w-7xl mx-auto px-6 py-4">
-            <h1 className="text-2xl font-bold text-white mb-4">Personal Dashboard</h1>
-            <nav className="flex gap-2 overflow-x-auto pb-2">
+      {/* Header */}
+      <header className="relative z-20 border-b border-slate-800/50 bg-slate-950/60 backdrop-blur">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/20 flex items-center justify-center">
+                <Layout className="w-5 h-5 text-blue-400" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                  Dashboard
+                </h1>
+                <p className="text-sm text-slate-400">Your personal productivity hub</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="relative z-10 max-w-7xl mx-auto px-6 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Sidebar */}
+          <aside className="lg:col-span-1">
+            <nav className="space-y-2">
               {modules.map((module) => {
                 const Icon = module.icon;
+                const isActive = activeModule === module.id;
+
                 return (
                   <button
                     key={module.id}
-                    onClick={() => setActiveModule(module.id as Module)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
-                      activeModule === module.id
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-800/50 text-slate-300 hover:bg-slate-700/50'
+                    onClick={() => {
+                      setActiveModule(module.id as Module);
+                      setRoute({ type: 'dashboard', module: module.id as Module });
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-200 ${
+                      isActive
+                        ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 border-blue-500/30 text-white'
+                        : 'bg-slate-900/40 border-slate-800/50 text-slate-300 hover:bg-slate-800/50 hover:border-slate-700/50'
                     }`}
                   >
-                    <Icon className="w-4 h-4" />
-                    {module.name}
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-blue-400' : 'text-slate-400'}`} />
+                    <span className="font-medium">{module.name}</span>
                   </button>
                 );
               })}
             </nav>
-          </div>
-        </header>
+          </aside>
 
-        <main className="max-w-7xl mx-auto px-6 py-8">
-          {activeModule === 'all' ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Quicklinks />
-              <ProjectsCenter />
-              <Triggers />
-              <URLShortener />
-              <SecretSharing />
-              <QRCodeGenerator />
-              <Pastebin />
-            </div>
-          ) : (
-            <div className="max-w-4xl mx-auto">{renderModule(activeModule)}</div>
-          )}
-        </main>
+          {/* Main Content */}
+          <main className="lg:col-span-3">
+            {activeModule === 'all' ? (
+              <div className="space-y-8">
+                <Quicklinks />
+                <ProjectsCenter />
+                <Triggers />
+                <URLShortener />
+                <SecretSharing />
+                <QRCodeGenerator />
+                <Pastebin />
+              </div>
+            ) : (
+              <div className="max-w-4xl mx-auto">{renderModule(activeModule)}</div>
+            )}
+          </main>
+        </div>
       </div>
     </div>
   );
