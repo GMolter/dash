@@ -102,7 +102,7 @@ export function Pastebin() {
   };
 
   const getPasteUrl = (pasteCode: string) => {
-    return `${window.location.origin}/paste/${pasteCode}`;
+    return `/paste/${pasteCode}`;
   };
 
   const isExpired = (expiresAt?: string) => {
@@ -208,11 +208,9 @@ export function Pastebin() {
                 <div className="flex items-center gap-2 mb-2">
                   <a
                     href={getPasteUrl(paste.paste_code)}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className="text-blue-400 hover:text-blue-300 font-mono text-sm"
                   >
-                    {getPasteUrl(paste.paste_code)}
+                    {window.location.origin}{getPasteUrl(paste.paste_code)}
                   </a>
                   <button
                     onClick={() => copyToClipboard(paste.paste_code)}
@@ -241,8 +239,6 @@ export function Pastebin() {
               <div className="flex gap-2">
                 <a
                   href={getPasteUrl(paste.paste_code)}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
                 >
                   <ExternalLink className="w-4 h-4 text-white" />
