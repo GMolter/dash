@@ -1,11 +1,15 @@
-export const config = {
-  runtime: "nodejs",
-};
+export const config = { runtime: "nodejs" };
 
-import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { clearSessionCookie } from "../_utils/session";
+export default function handler(_req: any, res: any) {
+  const cookie = [
+    "admin_session=",
+    "Path=/",
+    "HttpOnly",
+    "Secure",
+    "SameSite=Lax",
+    "Max-Age=0",
+  ].join("; ");
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader("Set-Cookie", clearSessionCookie());
+  res.setHeader("Set-Cookie", cookie);
   return res.status(200).json({ ok: true });
 }
