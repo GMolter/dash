@@ -1,19 +1,14 @@
 import crypto from "crypto";
 
 const COOKIE_NAME = "admin_session";
-const MAX_AGE_SECONDS = 60 * 60 * 12; // 12 hours
+const MAX_AGE_SECONDS = 60 * 60 * 12;
 
 function b64url(input: Buffer | string) {
   const buf = Buffer.isBuffer(input) ? input : Buffer.from(input);
-  return buf
-    .toString("base64")
-    .replace(/=/g, "")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_");
+  return buf.toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
 }
 
 function hmac(data: string, secret: string) {
-  // ✅ secret MUST be the 2nd arg
   return b64url(crypto.createHmac("sha256", secret).update(data).digest());
 }
 
@@ -29,7 +24,7 @@ export function makeSessionCookie(secret: string) {
     `HttpOnly`,
     `Secure`,
     `SameSite=Lax`,
-    `Max-Age=${MAX_AGE_SECONDS}`,
+    `Max-Age=${MAX_AGE_SECONDS}`
   ].join("; ");
 }
 
@@ -40,12 +35,12 @@ export function clearSessionCookie() {
     `HttpOnly`,
     `Secure`,
     `SameSite=Lax`,
-    `Max-Age=0`,
+    `Max-Age=0`
   ].join("; ");
 }
 
 export function isAuthed(req: any, secret: string) {
-  const header = req.headers.cookie || "";
+  const header = req.headers?.cookie || "";
   const match = header.match(/(?:^|;\s*)admin_session=([^;]+)/);
   if (!match) return false;
 
@@ -57,8 +52,6 @@ export function isAuthed(req: any, secret: string) {
   const sig = parts[2];
 
   const expected = hmac(payload, secret);
-
-  // avoid timing leaks
   if (sig.length !== expected.length) return false;
   if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return false;
 
