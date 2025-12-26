@@ -68,14 +68,14 @@ export function URLShortener() {
   };
 
   const copyToClipboard = (shortCode: string) => {
-    const shortUrl = `${window.location.origin}/s/${shortCode}`;
+    const shortUrl = `${window.location.origin}/${shortCode}`;
     navigator.clipboard.writeText(shortUrl);
     setCopied(shortCode);
     setTimeout(() => setCopied(null), 2000);
   };
 
   const getShortUrl = (shortCode: string) => {
-    return `${window.location.origin}/s/${shortCode}`;
+    return `${window.location.origin}/${shortCode}`;
   };
 
   const formatUrl = (url: string) => {
@@ -127,7 +127,7 @@ export function URLShortener() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-2">
                   <a
-                    href={getShortUrl(url.short_code)}
+                    href={`/${url.short_code}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-400 hover:text-blue-300 font-mono text-sm"
