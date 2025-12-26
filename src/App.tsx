@@ -30,6 +30,9 @@ function App() {
   const [activeModule, setActiveModule] = useState<Module>('all');
   const [route, setRoute] = useState<Route>({ type: 'dashboard', module: 'all' });
 
+  // Maintenance banner (from /api/public/settings)
+  const [banner, setBanner] = useState<{ enabled: boolean; text: string } | null>(null);
+
   useEffect(() => {
     const path = window.location.pathname;
 
@@ -55,6 +58,14 @@ function App() {
         setRoute({ type: '404' });
       }
     }
+  }, []);
+
+  // Load banner settings once (safe: if endpoint doesn't exist yet, it fails quietly)
+  useEffect(() => {
+    fetch('/api/public/settings')
+      .then((r) => r.json())
+      .then((j) => setBanner({ enabled: !!j.bannerEnabled, text: j.bannerText || '' }))
+      .catch(() => setBanner({ enabled: false, text: '' }));
   }, []);
 
   // Render based on route
@@ -107,6 +118,13 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
       <AnimatedBackground />
+
+      {/* Maintenance Banner */}
+      {banner?.enabled && banner.text?.trim() ? (
+        <div className="relative z-50 border-b border-amber-500/20 bg-amber-500/10 text-amber-200">
+          <div className="max-w-7xl mx-auto px-6 py-2 text-sm">{banner.text}</div>
+        </div>
+      ) : null}
 
       {/* Header */}
       <header className="relative z-20 border-b border-slate-800/50 bg-slate-950/60 backdrop-blur">
