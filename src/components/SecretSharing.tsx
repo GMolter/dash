@@ -62,7 +62,7 @@ export function SecretSharing() {
   };
 
   const getSecretUrl = (secretCode: string) => {
-    return `/secret/${secretCode}`;
+    return `${window.location.origin}/secret/${secretCode}`;
   };
 
   const isExpired = (expiresAt: string) => {
@@ -122,13 +122,13 @@ export function SecretSharing() {
                 <div className="flex items-center gap-2 mb-2">
                   <a
                     href={getSecretUrl(secret.secret_code)}
-                    className="text-blue-400 hover:text-blue-300 font-mono text-sm truncate"
+                    className="text-blue-400 hover:text-blue-300 font-mono text-sm truncate block"
                   >
-                    {window.location.origin}{getSecretUrl(secret.secret_code)}
+                    {getSecretUrl(secret.secret_code)}
                   </a>
                   <button
                     onClick={() => copyToClipboard(secret.secret_code)}
-                    className="p-1 hover:bg-slate-700 rounded transition-colors"
+                    className="p-1 hover:bg-slate-700 rounded transition-colors flex-shrink-0"
                     disabled={secret.viewed || isExpired(secret.expires_at)}
                   >
                     {copied === secret.secret_code ? (
