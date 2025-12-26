@@ -1,4 +1,4 @@
-import * as crypto from "node:crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 
 const COOKIE_NAME = "admin_session";
 const MAX_AGE_SECONDS = 60 * 60 * 12; // 12 hours
@@ -13,7 +13,7 @@ function b64url(input: Buffer | string) {
 }
 
 function hmac(data: string, secret: string) {
-  return b64url(crypto.createHmac("sha256", secret).update(data).digest());
+  return b64url(createHmac("sha256", secret).update(data).digest());
 }
 
 export function makeSessionCookie(secret: string) {
@@ -24,22 +24,22 @@ export function makeSessionCookie(secret: string) {
 
   return [
     `${COOKIE_NAME}=${token}`,
-    `Path=/`,
-    `HttpOnly`,
-    `Secure`,
-    `SameSite=Lax`,
-    `Max-Age=${MAX_AGE_SECONDS}`
+    "Path=/",
+    "HttpOnly",
+    "Secure",
+    "SameSite=Lax",
+    `Max-Age=${MAX_AGE_SECONDS}`,
   ].join("; ");
 }
 
 export function clearSessionCookie() {
   return [
     `${COOKIE_NAME}=`,
-    `Path=/`,
-    `HttpOnly`,
-    `Secure`,
-    `SameSite=Lax`,
-    `Max-Age=0`
+    "Path=/",
+    "HttpOnly",
+    "Secure",
+    "SameSite=Lax",
+    "Max-Age=0",
   ].join("; ");
 }
 
@@ -58,7 +58,7 @@ export function isAuthed(req: any, secret: string) {
   const expected = hmac(payload, secret);
 
   if (sig.length !== expected.length) return false;
-  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return false;
+  if (!timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return false;
 
   const issuedAt = Number(parts[1]);
   if (!Number.isFinite(issuedAt)) return false;
