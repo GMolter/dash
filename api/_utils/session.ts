@@ -1,11 +1,15 @@
-import crypto from "crypto";
+import * as crypto from "node:crypto";
 
 const COOKIE_NAME = "admin_session";
-const MAX_AGE_SECONDS = 60 * 60 * 12;
+const MAX_AGE_SECONDS = 60 * 60 * 12; // 12 hours
 
 function b64url(input: Buffer | string) {
   const buf = Buffer.isBuffer(input) ? input : Buffer.from(input);
-  return buf.toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+  return buf
+    .toString("base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
 }
 
 function hmac(data: string, secret: string) {
@@ -52,6 +56,7 @@ export function isAuthed(req: any, secret: string) {
   const sig = parts[2];
 
   const expected = hmac(payload, secret);
+
   if (sig.length !== expected.length) return false;
   if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return false;
 
