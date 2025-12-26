@@ -1,3 +1,7 @@
+export const config = {
+  runtime: "nodejs",
+};
+
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { clearSessionCookie } from "../_utils/session";
 
