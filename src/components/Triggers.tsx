@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Zap, Trash2, Play } from 'lucide-react';
+import { Plus, Zap, Trash2, Play, Pencil } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface Trigger {
@@ -14,6 +14,10 @@ interface Trigger {
 export function Triggers() {
   const [triggers, setTriggers] = useState<Trigger[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [triggerToDelete, setTriggerToDelete] = useState<Trigger | null>(null);
+  const [editingTrigger, setEditingTrigger] = useState<Trigger | null>(null);
+  
   const [name, setName] = useState('');
   const [webhookUrl, setWebhookUrl] = useState('');
   const [method, setMethod] = useState('POST');
@@ -46,21 +50,66 @@ export function Triggers() {
     });
 
     if (!error) {
-      setName('');
-      setWebhookUrl('');
-      setMethod('POST');
-      setDescription('');
-      setShowForm(false);
+      resetForm();
       loadTriggers();
     }
   };
 
-  const deleteTrigger = async (id: string) => {
-    const { error } = await supabase.from('triggers').delete().eq('id', id);
+  const updateTrigger = async () => {
+    if (!editingTrigger || !name || !webhookUrl) return;
+
+    const { error } = await supabase
+      .from('triggers')
+      .update({
+        name,
+        webhook_url: webhookUrl,
+        method,
+        description,
+      })
+      .eq('id', editingTrigger.id);
 
     if (!error) {
+      resetForm();
       loadTriggers();
     }
+  };
+
+  const deleteTrigger = async () => {
+    if (!triggerToDelete) return;
+
+    const { error } = await supabase
+      .from('triggers')
+      .delete()
+      .eq('id', triggerToDelete.id);
+
+    if (!error) {
+      setShowDeleteModal(false);
+      setTriggerToDelete(null);
+      loadTriggers();
+    }
+  };
+
+  const confirmDelete = (trigger: Trigger) => {
+    setTriggerToDelete(trigger);
+    setShowDeleteModal(true);
+  };
+
+  const startEdit = (trigger: Trigger) => {
+    setEditingTrigger(trigger);
+    setName(trigger.name);
+    setWebhookUrl(trigger.webhook_url);
+    setMethod(trigger.method);
+    setDescription(trigger.description);
+    setShowForm(true);
+  };
+
+  const resetForm = () => {
+    setName('');
+    setWebhookUrl('');
+    setMethod('POST');
+    setDescription('');
+    setShowForm(false);
+    setEditingTrigger(null);
   };
 
   const executeTrigger = async (trigger: Trigger) => {
@@ -101,15 +150,19 @@ export function Triggers() {
           Triggers
         </h2>
         <button
-          onClick={() => setShowForm(!showForm)}
-          className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+          onClick={() => setShowForm(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium transition-colors"
         >
-          <Plus className="w-4 h-4 text-white" />
+          <Plus className="w-4 h-4" />
+          Add Trigger
         </button>
       </div>
 
       {showForm && (
         <div className="mb-4 space-y-2 p-4 bg-slate-900/50 rounded-lg">
+          <h3 className="text-lg font-semibold text-white mb-3">
+            {editingTrigger ? 'Edit Trigger' : 'Add New Trigger'}
+          </h3>
           <input
             type="text"
             placeholder="Trigger Name"
@@ -141,12 +194,20 @@ export function Triggers() {
             className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             rows={2}
           />
-          <button
-            onClick={addTrigger}
-            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium transition-colors"
-          >
-            Add Trigger
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={editingTrigger ? updateTrigger : addTrigger}
+              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium transition-colors"
+            >
+              {editingTrigger ? 'Update Trigger' : 'Add Trigger'}
+            </button>
+            <button
+              onClick={resetForm}
+              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white font-medium transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
@@ -178,7 +239,13 @@ export function Triggers() {
                   <Play className="w-4 h-4 text-white" />
                 </button>
                 <button
-                  onClick={() => deleteTrigger(trigger.id)}
+                  onClick={() => startEdit(trigger)}
+                  className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <Pencil className="w-4 h-4 text-white" />
+                </button>
+                <button
+                  onClick={() => confirmDelete(trigger)}
                   className="p-2 bg-red-600 hover:bg-red-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <Trash2 className="w-4 h-4 text-white" />
@@ -191,6 +258,38 @@ export function Triggers() {
 
       {triggers.length === 0 && !showForm && (
         <p className="text-slate-400 text-center py-8">No triggers yet. Add one to get started!</p>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && triggerToDelete && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 max-w-md w-full mx-4">
+            <div className="text-center mb-6">
+              <div className="text-5xl mb-4">⚠️</div>
+              <h3 className="text-xl font-semibold text-white mb-2">Delete Trigger?</h3>
+              <p className="text-slate-400">
+                Are you sure you want to delete "{triggerToDelete.name}"? This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setTriggerToDelete(null);
+                }}
+                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteTrigger}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white font-medium transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
