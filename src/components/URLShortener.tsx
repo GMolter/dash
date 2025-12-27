@@ -175,3 +175,49 @@ export function URLShortener() {
                   onClick={() => confirmDelete(url)}
                   className="p-2 bg-red-600 hover:bg-red-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                 >
+                <Trash2 className="w-4 h-4 text-white" />
+            </button>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+
+  {urls.length === 0 && (
+    <p className="text-slate-400 text-center py-8">No shortened URLs yet. Create one to get started!</p>
+  )}
+
+  {/* Delete Confirmation Modal */}
+  {showDeleteModal && urlToDelete && (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 max-w-md w-full mx-4">
+        <div className="text-center mb-6">
+          <div className="text-5xl mb-4">⚠️</div>
+          <h3 className="text-xl font-semibold text-white mb-2">Delete Short URL?</h3>
+          <p className="text-slate-400">
+            Are you sure you want to delete the short URL "{urlToDelete.short_code}"? This action cannot be undone and the link will stop working.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={() => {
+              setShowDeleteModal(false);
+              setUrlToDelete(null);
+            }}
+            className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white font-medium transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={deleteUrl}
+            className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white font-medium transition-colors"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
+</div>
+);
+}
