@@ -25,6 +25,8 @@ type View =
   | { type: 'paste'; code: string }
   | { type: 'paste-list' };
 
+type BannerState = { enabled: boolean; text: string };
+
 function App() {
   const [view, setView] = useState<View>({ type: 'home' });
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -38,11 +40,8 @@ function App() {
 
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // banner state
-  const [banner, setBanner] = useState<{ enabled: boolean; text: string }>({
-    enabled: false,
-    text: '',
-  });
+  // ✅ Banner comes from the same API Admin uses
+  const [banner, setBanner] = useState<BannerState>({ enabled: false, text: '' });
 
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -57,45 +56,39 @@ function App() {
     }
   }, [sidebarOpen]);
 
-  // Load banner from multiple possible keys (so we don't break your existing Admin storage)
+  // ✅ Load banner from /api/public/settings
   useEffect(() => {
-    const tryParse = (raw: string | null) => {
-      if (!raw) return null;
+    let cancelled = false;
+
+    async function loadBanner() {
       try {
-        const parsed = JSON.parse(raw);
-        if (typeof parsed === 'object' && parsed) return parsed;
+        const r = await fetch('/api/public/settings');
+        const j = await r.json();
+        if (cancelled) return;
+
+        setBanner({
+          enabled: !!j.bannerEnabled,
+          text: j.bannerText || '',
+        });
       } catch {
-        // raw string fallback
-        return { enabled: true, text: raw };
-      }
-      return null;
-    };
-
-    const keysToTry = [
-      'olio_banner',
-      'maintenance_banner',
-      'maintenanceBanner',
-      'banner',
-      'home_banner',
-    ];
-
-    for (const k of keysToTry) {
-      const parsed = tryParse(localStorage.getItem(k));
-      if (parsed && typeof parsed.enabled === 'boolean' && typeof parsed.text === 'string') {
-        setBanner({ enabled: parsed.enabled, text: parsed.text });
-        return;
-      }
-      if (parsed && typeof parsed.text === 'string' && typeof (parsed as any).enabled !== 'boolean') {
-        setBanner({ enabled: true, text: parsed.text });
-        return;
-      }
-      if (parsed && typeof (parsed as any).enabled !== 'boolean' && typeof (parsed as any) === 'object') {
-        // ignore unknown shapes
+        // If API isn't reachable, just keep banner hidden.
+        if (cancelled) return;
+        setBanner({ enabled: false, text: '' });
       }
     }
 
-    // nothing found
-    setBanner({ enabled: false, text: '' });
+    loadBanner();
+
+    // Refresh when tab regains focus (so after saving in Admin it shows on Home)
+    const onVis = () => {
+      if (document.visibilityState === 'visible') loadBanner();
+    };
+    document.addEventListener('visibilitychange', onVis);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, []);
 
   useEffect(() => {
@@ -130,7 +123,7 @@ function App() {
   const toggleSidebar = () => setSidebarOpen((v) => !v);
 
   const formatTime = (date: Date) => {
-    // 12-hour + AM/PM
+    // ✅ 12-hour + AM/PM
     return date.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
@@ -217,22 +210,25 @@ function App() {
       <div className="relative z-10 min-h-screen flex flex-col">
         {/* Header */}
         <header className="relative z-20 border-b border-slate-800/50 bg-slate-950/80 backdrop-blur">
-          <div className="px-8 py-6 flex items-start justify-between">
-            <div className="flex items-start gap-6">
+          <div className="px-10 py-7 flex items-start justify-between">
+            <div className="flex items-start gap-8">
+              {/* ✅ Bigger toggle button + more breathing room */}
               <button
                 onClick={toggleSidebar}
-                className="p-3 hover:bg-slate-800/50 bg-slate-900/30 border border-slate-800/60 rounded-xl transition-colors"
+                className="p-4 hover:bg-slate-800/50 bg-slate-900/30 border border-slate-800/60 rounded-2xl transition-colors"
                 aria-label="Toggle menu"
               >
                 {sidebarOpen ? <X className="w-7 h-7" /> : <Menu className="w-7 h-7" />}
               </button>
 
-              <div className="pt-0.5">
-                {/* Slightly smaller than the version you disliked */}
+              <div className="pt-1">
+                {/* ✅ Not absurdly huge, but prominent */}
                 <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-white">
                   Olio Workstation
                 </h1>
-                <p className="mt-3 text-lg md:text-xl text-slate-300">
+
+                {/* ✅ Greeting/date/time close in “one line group”, but not cramped */}
+                <p className="mt-4 text-lg md:text-xl text-slate-300">
                   {getGreeting()} · {formatDate(currentTime)} ·{' '}
                   <span className="font-mono text-slate-200">{formatTime(currentTime)}</span>
                 </p>
@@ -241,14 +237,14 @@ function App() {
           </div>
         </header>
 
-        {/* Maintenance Banner */}
+        {/* ✅ Larger, rounded banner that matches site scale */}
         {banner.enabled && banner.text?.trim() && (
-          <div className="relative z-20 px-8 pt-4">
-            <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 backdrop-blur px-5 py-4 flex items-start gap-3">
-              <div className="h-10 w-10 rounded-xl border border-amber-500/25 bg-amber-500/10 flex items-center justify-center flex-none">
+          <div className="relative z-20 px-10 pt-5">
+            <div className="rounded-3xl border border-amber-500/25 bg-amber-500/12 backdrop-blur px-6 py-5 flex items-start gap-4">
+              <div className="h-11 w-11 rounded-2xl border border-amber-500/25 bg-amber-500/12 flex items-center justify-center flex-none">
                 <AlertTriangle className="w-5 h-5 text-amber-200" />
               </div>
-              <div className="text-base text-amber-100 leading-snug">
+              <div className="text-base md:text-lg text-amber-100 leading-snug">
                 {banner.text}
               </div>
             </div>
@@ -258,8 +254,8 @@ function App() {
         <div className="relative z-10 flex flex-1">
           {/* Sidebar */}
           {sidebarOpen && (
-            <aside className="w-64 border-r border-slate-800/50 bg-slate-950/40 backdrop-blur">
-              <nav className="p-4 space-y-3">
+            <aside className="w-72 border-r border-slate-800/50 bg-slate-950/40 backdrop-blur">
+              <nav className="p-5 space-y-3">
                 {navItems.map((item) => {
                   const active =
                     (view.type === 'home' && item.id === 'home') ||
@@ -274,7 +270,7 @@ function App() {
                     <button
                       key={item.id}
                       onClick={() => setView(item.view)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+                      className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-colors ${
                         active
                           ? 'bg-blue-500/20 border border-blue-500/30 text-blue-200'
                           : 'hover:bg-slate-800/40 text-slate-200'
@@ -290,7 +286,7 @@ function App() {
           )}
 
           {/* Main Content */}
-          <main className="flex-1 p-8">
+          <main className="flex-1 p-10">
             {view.type === 'home' && renderHome()}
             {view.type === 'utilities' && renderUtilities()}
             {view.type === 'tool' && renderUtilities()}
