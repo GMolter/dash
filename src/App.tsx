@@ -13,6 +13,7 @@ import { PasteView } from './pages/PasteView';
 import { PasteList } from './pages/PasteList';
 import { NotFound } from './pages/NotFound';
 import Admin from './pages/Admin';
+import { UtilitiesHub } from './components/UtilitiesHub';
 import { Home, Wrench, Shield, Menu, X, AlertTriangle } from 'lucide-react';
 
 type View =
@@ -36,7 +37,12 @@ function App() {
   });
 
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [banner, setBanner] = useState<{ enabled: boolean; text: string } | null>(null);
+
+  // banner state
+  const [banner, setBanner] = useState<{ enabled: boolean; text: string }>({
+    enabled: false,
+    text: '',
+  });
 
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -51,20 +57,45 @@ function App() {
     }
   }, [sidebarOpen]);
 
+  // Load banner from multiple possible keys (so we don't break your existing Admin storage)
   useEffect(() => {
-    const load = async () => {
+    const tryParse = (raw: string | null) => {
+      if (!raw) return null;
       try {
-        const saved = localStorage.getItem('olio_banner');
-        if (saved) {
-          setBanner(JSON.parse(saved));
-        } else {
-          setBanner({ enabled: false, text: '' });
-        }
+        const parsed = JSON.parse(raw);
+        if (typeof parsed === 'object' && parsed) return parsed;
       } catch {
-        setBanner({ enabled: false, text: '' });
+        // raw string fallback
+        return { enabled: true, text: raw };
       }
+      return null;
     };
-    load();
+
+    const keysToTry = [
+      'olio_banner',
+      'maintenance_banner',
+      'maintenanceBanner',
+      'banner',
+      'home_banner',
+    ];
+
+    for (const k of keysToTry) {
+      const parsed = tryParse(localStorage.getItem(k));
+      if (parsed && typeof parsed.enabled === 'boolean' && typeof parsed.text === 'string') {
+        setBanner({ enabled: parsed.enabled, text: parsed.text });
+        return;
+      }
+      if (parsed && typeof parsed.text === 'string' && typeof (parsed as any).enabled !== 'boolean') {
+        setBanner({ enabled: true, text: parsed.text });
+        return;
+      }
+      if (parsed && typeof (parsed as any).enabled !== 'boolean' && typeof (parsed as any) === 'object') {
+        // ignore unknown shapes
+      }
+    }
+
+    // nothing found
+    setBanner({ enabled: false, text: '' });
   }, []);
 
   useEffect(() => {
@@ -87,21 +118,19 @@ function App() {
       return;
     }
 
-    // If it looks like a short URL code
     const maybeCode = path.replace('/', '');
     if (maybeCode && !['home', 'utilities', 'admin'].includes(maybeCode)) {
       setView({ type: 'tool', tool: 'redirect' });
       return;
     }
 
-    // Default route
     setView({ type: 'home' });
   }, []);
 
   const toggleSidebar = () => setSidebarOpen((v) => !v);
 
   const formatTime = (date: Date) => {
-    // 12-hour with AM/PM, live
+    // 12-hour + AM/PM
     return date.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
@@ -151,28 +180,9 @@ function App() {
   );
 
   const renderUtilities = () => {
-    const [showDescriptions, setShowDescriptions] = useState(() => {
-      try {
-        const saved = localStorage.getItem('utilities_show_desc');
-        return saved === 'true';
-      } catch {
-        return false;
-      }
-    });
-
-    useEffect(() => {
-      try {
-        localStorage.setItem('utilities_show_desc', String(showDescriptions));
-      } catch {
-        // ignore
-      }
-    }, [showDescriptions]);
-
     if (view.type === 'tool') {
       if (view.tool === 'redirect') return <URLRedirect />;
-    }
 
-    if (view.type === 'tool') {
       return (
         <div className="space-y-6">
           <button
@@ -194,48 +204,10 @@ function App() {
     }
 
     return (
-      <div className="space-y-8">
-        <div className="flex items-start justify-between gap-6">
-          <div>
-            <h2 className="text-3xl font-semibold text-white">Utilities</h2>
-          </div>
-
-          <button
-            onClick={() => setShowDescriptions((v) => !v)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-700 bg-slate-900/30 hover:bg-slate-900/50 text-slate-200 transition-colors"
-            aria-pressed={showDescriptions}
-          >
-            <div className="h-6 w-6 rounded-lg border border-slate-700 bg-slate-800/60 flex items-center justify-center">
-              <span className="text-sm font-semibold text-slate-200">i</span>
-            </div>
-            <span className="text-sm font-medium">
-              {showDescriptions ? 'Hide Descriptions' : 'Show Descriptions'}
-            </span>
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {utilities.map((tool) => (
-            <button
-              key={tool.id}
-              onClick={() => setView({ type: 'tool', tool: tool.id })}
-              className="group text-left bg-slate-900/30 border border-slate-800/60 hover:border-slate-700 rounded-2xl p-6 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl border border-slate-800 bg-slate-900/50 flex items-center justify-center text-lg">
-                  {tool.icon}
-                </div>
-                <div>
-                  <div className="text-lg font-semibold text-white">{tool.label}</div>
-                  {showDescriptions && (
-                    <div className="text-sm text-slate-400 mt-1">{tool.desc}</div>
-                  )}
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
+      <UtilitiesHub
+        tools={utilities}
+        onOpenTool={(toolId) => setView({ type: 'tool', tool: toolId })}
+      />
     );
   };
 
@@ -256,10 +228,11 @@ function App() {
               </button>
 
               <div className="pt-0.5">
-                <h1 className="text-3xl font-semibold tracking-tight text-white">
+                {/* Slightly smaller than the version you disliked */}
+                <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-white">
                   Olio Workstation
                 </h1>
-                <p className="mt-3 text-xl text-slate-300">
+                <p className="mt-3 text-lg md:text-xl text-slate-300">
                   {getGreeting()} · {formatDate(currentTime)} ·{' '}
                   <span className="font-mono text-slate-200">{formatTime(currentTime)}</span>
                 </p>
@@ -269,7 +242,7 @@ function App() {
         </header>
 
         {/* Maintenance Banner */}
-        {banner?.enabled && banner.text?.trim() && (
+        {banner.enabled && banner.text?.trim() && (
           <div className="relative z-20 px-8 pt-4">
             <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 backdrop-blur px-5 py-4 flex items-start gap-3">
               <div className="h-10 w-10 rounded-xl border border-amber-500/25 bg-amber-500/10 flex items-center justify-center flex-none">
@@ -325,7 +298,6 @@ function App() {
             {view.type === 'paste' && <PasteView code={view.code} />}
             {view.type === 'paste-list' && <PasteList />}
             {view.type === 'admin' && <Admin />}
-            {view.type === 'tool' && view.tool === 'redirect' && <URLRedirect />}
             {view.type === 'tool' && view.tool === 'notfound' && <NotFound />}
           </main>
         </div>
