@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Folder, Trash2, Tag } from 'lucide-react';
+import { Plus, Folder, Trash2, Tag, Pencil } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface Project {
@@ -15,6 +15,10 @@ interface Project {
 export function ProjectsCenter() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [url, setUrl] = useState('');
@@ -48,22 +52,69 @@ export function ProjectsCenter() {
     });
 
     if (!error) {
-      setName('');
-      setDescription('');
-      setUrl('');
-      setStatus('active');
-      setTags('');
-      setShowForm(false);
+      resetForm();
       loadProjects();
     }
   };
 
-  const deleteProject = async (id: string) => {
-    const { error } = await supabase.from('projects').delete().eq('id', id);
+  const updateProject = async () => {
+    if (!editingProject || !name) return;
+
+    const { error } = await supabase
+      .from('projects')
+      .update({
+        name,
+        description,
+        url: url || null,
+        status,
+        tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
+      })
+      .eq('id', editingProject.id);
 
     if (!error) {
+      resetForm();
       loadProjects();
     }
+  };
+
+  const deleteProject = async () => {
+    if (!projectToDelete) return;
+
+    const { error } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', projectToDelete.id);
+
+    if (!error) {
+      setShowDeleteModal(false);
+      setProjectToDelete(null);
+      loadProjects();
+    }
+  };
+
+  const confirmDelete = (project: Project) => {
+    setProjectToDelete(project);
+    setShowDeleteModal(true);
+  };
+
+  const startEdit = (project: Project) => {
+    setEditingProject(project);
+    setName(project.name);
+    setDescription(project.description);
+    setUrl(project.url || '');
+    setStatus(project.status);
+    setTags(project.tags.join(', '));
+    setShowForm(true);
+  };
+
+  const resetForm = () => {
+    setName('');
+    setDescription('');
+    setUrl('');
+    setStatus('active');
+    setTags('');
+    setShowForm(false);
+    setEditingProject(null);
   };
 
   const getStatusColor = (status: string) => {
@@ -94,15 +145,19 @@ export function ProjectsCenter() {
           Projects Center
         </h2>
         <button
-          onClick={() => setShowForm(!showForm)}
-          className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+          onClick={() => setShowForm(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium transition-colors"
         >
-          <Plus className="w-4 h-4 text-white" />
+          <Plus className="w-4 h-4" />
+          Add Project
         </button>
       </div>
 
       {showForm && (
         <div className="mb-4 space-y-2 p-4 bg-slate-900/50 rounded-lg">
+          <h3 className="text-lg font-semibold text-white mb-3">
+            {editingProject ? 'Edit Project' : 'Add New Project'}
+          </h3>
           <input
             type="text"
             placeholder="Project Name"
@@ -140,12 +195,20 @@ export function ProjectsCenter() {
             <option value="completed">Completed</option>
             <option value="archived">Archived</option>
           </select>
-          <button
-            onClick={addProject}
-            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium transition-colors"
-          >
-            Add Project
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={editingProject ? updateProject : addProject}
+              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium transition-colors"
+            >
+              {editingProject ? 'Update Project' : 'Add Project'}
+            </button>
+            <button
+              onClick={resetForm}
+              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white font-medium transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
@@ -165,7 +228,7 @@ export function ProjectsCenter() {
                 </div>
                 {project.description && <p className="text-slate-400 text-sm mb-2">{project.description}</p>}
                 {project.url && (
-                  <a
+                  
                     href={formatUrl(project.url)}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -185,12 +248,20 @@ export function ProjectsCenter() {
                   </div>
                 )}
               </div>
-              <button
-                onClick={() => deleteProject(project.id)}
-                className="p-1 bg-red-600 hover:bg-red-700 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <Trash2 className="w-4 h-4 text-white" />
-              </button>
+              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => startEdit(project)}
+                  className="p-2 bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+                >
+                  <Pencil className="w-4 h-4 text-white" />
+                </button>
+                <button
+                  onClick={() => confirmDelete(project)}
+                  className="p-2 bg-red-600 hover:bg-red-700 rounded transition-opacity"
+                >
+                  <Trash2 className="w-4 h-4 text-white" />
+                </button>
+              </div>
             </div>
           </div>
         ))}
@@ -198,6 +269,38 @@ export function ProjectsCenter() {
 
       {projects.length === 0 && !showForm && (
         <p className="text-slate-400 text-center py-8">No projects yet. Add one to get started!</p>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && projectToDelete && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 max-w-md w-full mx-4">
+            <div className="text-center mb-6">
+              <div className="text-5xl mb-4">⚠️</div>
+              <h3 className="text-xl font-semibold text-white mb-2">Delete Project?</h3>
+              <p className="text-slate-400">
+                Are you sure you want to delete "{projectToDelete.name}"? This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setProjectToDelete(null);
+                }}
+                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteProject}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white font-medium transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
