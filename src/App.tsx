@@ -13,7 +13,7 @@ import { PasteView } from './pages/PasteView';
 import { PasteList } from './pages/PasteList';
 import { NotFound } from './pages/NotFound';
 import Admin from './pages/Admin';
-import { Home, Wrench, Shield, Menu, X } from 'lucide-react';
+import { Home, Wrench, Shield, Menu, X, Eye, EyeOff } from 'lucide-react';
 
 type View = 
   | { type: 'home' }
@@ -33,11 +33,20 @@ function App() {
     return saved ? JSON.parse(saved) : false;
   });
   const [banner, setBanner] = useState<{ enabled: boolean; text: string } | null>(null);
+  const [showToolDescriptions, setShowToolDescriptions] = useState(() => {
+    const saved = localStorage.getItem('utilities-show-descriptions');
+    return saved ? JSON.parse(saved) : false;
+  });
 
   // Persist sidebar state
   useEffect(() => {
     localStorage.setItem('sidebar-open', JSON.stringify(sidebarOpen));
   }, [sidebarOpen]);
+
+  // Persist Utilities descriptions toggle
+  useEffect(() => {
+    localStorage.setItem('utilities-show-descriptions', JSON.stringify(showToolDescriptions));
+  }, [showToolDescriptions]);
 
   // Route detection
   useEffect(() => {
@@ -103,12 +112,13 @@ function App() {
   };
 
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit', 
-      second: '2-digit',
-      hour12: false 
-    });
+    // Force 12-hour clock with AM/PM (avoid locale/system 24h preferences)
+    const hours24 = date.getHours();
+    const hours12 = ((hours24 + 11) % 12) + 1; // 1..12
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    const ampm = hours24 >= 12 ? 'PM' : 'AM';
+    return `${hours12}:${minutes}:${seconds} ${ampm}`;
   };
 
   const formatDate = (date: Date) => {
@@ -125,7 +135,7 @@ function App() {
 
       {/* Header */}
       <header className="relative z-20 border-b border-slate-800/50 bg-slate-950/80 backdrop-blur">
-        <div className="px-6 py-3 flex items-center justify-between">
+        <div className="px-6 py-4 flex items-start justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={toggleSidebar}
@@ -135,14 +145,16 @@ function App() {
               {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
             <div>
-              <h1 className="text-lg font-bold text-white">Olio Workstation</h1>
-              <p className="text-xs text-slate-400">
-                {getGreeting()} · {formatDate(currentTime)}
-              </p>
+              <h1 className="text-5xl font-bold text-white leading-tight">Olio Workstation</h1>
+              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-4xl text-slate-300">
+                <span className="font-medium">
+                  {getGreeting()} · {formatDate(currentTime)}
+                </span>
+                <span className="font-mono text-slate-200">
+                  {formatTime(currentTime)}
+                </span>
+              </div>
             </div>
-          </div>
-          <div className="text-lg font-mono text-slate-300">
-            {formatTime(currentTime)}
           </div>
         </div>
       </header>
@@ -160,8 +172,8 @@ function App() {
       <div className="relative z-10 flex">
         {/* Sidebar */}
         {sidebarOpen && (
-          <aside className="w-48 border-r border-slate-800/50 bg-slate-950/60 backdrop-blur min-h-[calc(100vh-73px)]">
-            <nav className="p-4 space-y-2">
+          <aside className="w-80 border-r border-slate-800/50 bg-slate-950/60 backdrop-blur min-h-[calc(100vh-73px)]">
+            <nav className="p-6 space-y-4">
               <button
                 onClick={() => setView({ type: 'home' })}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
@@ -170,8 +182,8 @@ function App() {
                     : 'text-slate-300 hover:bg-slate-800/50'
                 }`}
               >
-                <Home className="w-5 h-5" />
-                <span className="font-medium">Home</span>
+                <Home className="w-7 h-7" />
+                <span className="font-semibold text-2xl">Home</span>
               </button>
               
               <button
@@ -182,8 +194,8 @@ function App() {
                     : 'text-slate-300 hover:bg-slate-800/50'
                 }`}
               >
-                <Wrench className="w-5 h-5" />
-                <span className="font-medium">Utilities</span>
+                <Wrench className="w-7 h-7" />
+                <span className="font-semibold text-2xl">Utilities</span>
               </button>
 
               <button
@@ -194,8 +206,8 @@ function App() {
                     : 'text-slate-300 hover:bg-slate-800/50'
                 }`}
               >
-                <Shield className="w-5 h-5" />
-                <span className="font-medium">Admin</span>
+                <Shield className="w-7 h-7" />
+                <span className="font-semibold text-2xl">Admin</span>
               </button>
             </nav>
           </aside>
@@ -220,8 +232,31 @@ function App() {
                 <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                   Utilities
                 </h2>
-                <button className="px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 rounded-lg text-sm transition-colors">
-                  ℹ️ Show Descriptions
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={showToolDescriptions}
+                  onClick={() => setShowToolDescriptions((v) => !v)}
+                  className="group flex items-center gap-3 rounded-xl border border-slate-700/60 bg-slate-900/30 px-4 py-3 text-sm text-slate-200 transition-colors hover:bg-slate-900/50"
+                  title={showToolDescriptions ? 'Hide tool descriptions' : 'Show tool descriptions'}
+                >
+                  <span className="flex items-center gap-2">
+                    {showToolDescriptions ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    <span className="font-medium">Descriptions</span>
+                  </span>
+                  <span
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full border transition-colors ${
+                      showToolDescriptions
+                        ? 'bg-blue-500/25 border-blue-500/40'
+                        : 'bg-slate-800/60 border-slate-700/60'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white/90 shadow transition-transform ${
+                        showToolDescriptions ? 'translate-x-5' : 'translate-x-1'
+                      }`}
+                    />
+                  </span>
                 </button>
               </div>
               
@@ -242,7 +277,9 @@ function App() {
                   >
                     <div className="text-3xl mb-3">{tool.icon}</div>
                     <h3 className="text-xl font-semibold text-white mb-2">{tool.name}</h3>
-                    <p className="text-sm text-slate-400">{tool.desc}</p>
+                    {showToolDescriptions && (
+                      <p className="text-sm text-slate-400">{tool.desc}</p>
+                    )}
                   </button>
                 ))}
               </div>
