@@ -18,7 +18,7 @@ export function ProjectsCenter() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
-  
+
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [url, setUrl] = useState('');
@@ -226,9 +226,12 @@ export function ProjectsCenter() {
                     {project.status}
                   </span>
                 </div>
+
                 {project.description && <p className="text-slate-400 text-sm mb-2">{project.description}</p>}
+
+                {/* ✅ FIXED: missing <a> tag */}
                 {project.url && (
-                  
+                  <a
                     href={formatUrl(project.url)}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -237,6 +240,7 @@ export function ProjectsCenter() {
                     {project.url}
                   </a>
                 )}
+
                 {project.tags.length > 0 && (
                   <div className="flex items-center gap-1 mt-2">
                     <Tag className="w-3 h-3 text-slate-500" />
@@ -248,6 +252,7 @@ export function ProjectsCenter() {
                   </div>
                 )}
               </div>
+
               <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   onClick={() => startEdit(project)}
@@ -271,7 +276,6 @@ export function ProjectsCenter() {
         <p className="text-slate-400 text-center py-8">No projects yet. Add one to get started!</p>
       )}
 
-      {/* Delete Confirmation Modal */}
       {showDeleteModal && projectToDelete && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 max-w-md w-full mx-4">
