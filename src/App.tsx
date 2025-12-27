@@ -258,7 +258,7 @@ function App() {
                 ← Back to Utilities
               </button>
               
-              {view.tool === 'quicklinks' && <Quicklinks />}
+              {view.tool === 'quicklinks' && <Quicklinks editMode={true} />}
               {view.tool === 'projects' && <ProjectsCenter />}
               {view.tool === 'triggers' && <Triggers />}
               {view.tool === 'url' && <URLShortener />}
