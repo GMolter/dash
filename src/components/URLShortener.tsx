@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link2, Copy, ExternalLink, Trash2 } from 'lucide-react';
+import { Link2, Copy, ExternalLink, Trash2, Pencil } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface ShortUrl {
@@ -15,6 +15,8 @@ export function URLShortener() {
   const [targetUrl, setTargetUrl] = useState('');
   const [customCode, setCustomCode] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [urlToDelete, setUrlToDelete] = useState<ShortUrl | null>(null);
 
   useEffect(() => {
     loadUrls();
@@ -59,12 +61,24 @@ export function URLShortener() {
     loadUrls();
   };
 
-  const deleteUrl = async (id: string) => {
-    const { error } = await supabase.from('short_urls').delete().eq('id', id);
+  const deleteUrl = async () => {
+    if (!urlToDelete) return;
+
+    const { error } = await supabase
+      .from('short_urls')
+      .delete()
+      .eq('id', urlToDelete.id);
 
     if (!error) {
+      setShowDeleteModal(false);
+      setUrlToDelete(null);
       loadUrls();
     }
+  };
+
+  const confirmDelete = (url: ShortUrl) => {
+    setUrlToDelete(url);
+    setShowDeleteModal(true);
   };
 
   const copyToClipboard = (shortCode: string) => {
@@ -126,7 +140,7 @@ export function URLShortener() {
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-2">
-                  <a
+                  
                     href={`/${url.short_code}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -149,7 +163,7 @@ export function URLShortener() {
                 <p className="text-slate-500 text-xs mt-1">{url.clicks} clicks</p>
               </div>
               <div className="flex gap-2">
-                <a
+                
                   href={formatUrl(url.target_url)}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -158,20 +172,6 @@ export function URLShortener() {
                   <ExternalLink className="w-4 h-4 text-white" />
                 </a>
                 <button
-                  onClick={() => deleteUrl(url.id)}
+                  onClick={() => confirmDelete(url)}
                   className="p-2 bg-red-600 hover:bg-red-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  <Trash2 className="w-4 h-4 text-white" />
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {urls.length === 0 && (
-        <p className="text-slate-400 text-center py-8">No shortened URLs yet. Create one to get started!</p>
-      )}
-    </div>
-  );
-}
