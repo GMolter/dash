@@ -210,7 +210,7 @@ function App() {
                   Quick Links
                 </h2>
               </div>
-              <Quicklinks />
+              <Quicklinks editMode={false} />
             </div>
           )}
 
