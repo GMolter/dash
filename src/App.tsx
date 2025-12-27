@@ -13,96 +13,110 @@ import { PasteView } from './pages/PasteView';
 import { PasteList } from './pages/PasteList';
 import { NotFound } from './pages/NotFound';
 import Admin from './pages/Admin';
-import { Home, Wrench, Shield, Menu, X, Eye, EyeOff } from 'lucide-react';
+import { Home, Wrench, Shield, Menu, X, AlertTriangle } from 'lucide-react';
 
-type View = 
+type View =
   | { type: 'home' }
   | { type: 'utilities' }
   | { type: 'admin' }
   | { type: 'tool'; tool: string }
   | { type: 'secret'; code: string }
   | { type: 'paste'; code: string }
-  | { type: 'paste-list' }
-  | { type: 'short-url'; code: string }
-  | { type: '404' };
+  | { type: 'paste-list' };
 
 function App() {
   const [view, setView] = useState<View>({ type: 'home' });
   const [sidebarOpen, setSidebarOpen] = useState(() => {
-    const saved = localStorage.getItem('sidebar-open');
-    return saved ? JSON.parse(saved) : false;
-  });
-  const [banner, setBanner] = useState<{ enabled: boolean; text: string } | null>(null);
-  const [showToolDescriptions, setShowToolDescriptions] = useState(() => {
-    const saved = localStorage.getItem('utilities-show-descriptions');
-    return saved ? JSON.parse(saved) : false;
+    try {
+      const saved = localStorage.getItem('sidebarOpen');
+      return saved === null ? true : saved === 'true';
+    } catch {
+      return true;
+    }
   });
 
-  // Persist sidebar state
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [banner, setBanner] = useState<{ enabled: boolean; text: string } | null>(null);
+
   useEffect(() => {
-    localStorage.setItem('sidebar-open', JSON.stringify(sidebarOpen));
+    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('sidebarOpen', String(sidebarOpen));
+    } catch {
+      // ignore
+    }
   }, [sidebarOpen]);
 
-  // Persist Utilities descriptions toggle
   useEffect(() => {
-    localStorage.setItem('utilities-show-descriptions', JSON.stringify(showToolDescriptions));
-  }, [showToolDescriptions]);
+    const load = async () => {
+      try {
+        const saved = localStorage.getItem('olio_banner');
+        if (saved) {
+          setBanner(JSON.parse(saved));
+        } else {
+          setBanner({ enabled: false, text: '' });
+        }
+      } catch {
+        setBanner({ enabled: false, text: '' });
+      }
+    };
+    load();
+  }, []);
 
-  // Route detection
   useEffect(() => {
     const path = window.location.pathname;
 
-    if (path === '/' || path === '') {
-      setView({ type: 'home' });
-    } else if (path === '/p' || path === '/paste' || path === '/pastes') {
-      setView({ type: 'paste-list' });
-    } else if (path.startsWith('/secret/')) {
-      const code = path.substring(8);
+    if (path.startsWith('/s/')) {
+      const code = path.replace('/s/', '').split('/')[0];
       setView({ type: 'secret', code });
-    } else if (path.startsWith('/paste/')) {
-      const code = path.substring(7);
-      setView({ type: 'paste', code });
-    } else if (path === '/admin') {
-      setView({ type: 'admin' });
-    } else {
-      const code = path.substring(1);
-      if (code) {
-        setView({ type: 'short-url', code });
-      } else {
-        setView({ type: '404' });
-      }
+      return;
     }
+
+    if (path.startsWith('/p/')) {
+      const code = path.replace('/p/', '').split('/')[0];
+      setView({ type: 'paste', code });
+      return;
+    }
+
+    if (path === '/pastes') {
+      setView({ type: 'paste-list' });
+      return;
+    }
+
+    // If it looks like a short URL code
+    const maybeCode = path.replace('/', '');
+    if (maybeCode && !['home', 'utilities', 'admin'].includes(maybeCode)) {
+      setView({ type: 'tool', tool: 'redirect' });
+      return;
+    }
+
+    // Default route
+    setView({ type: 'home' });
   }, []);
 
-  // Load banner settings
-  useEffect(() => {
-    fetch('/api/public/settings')
-      .then((r) => r.json())
-      .then((j) => setBanner({ enabled: !!j.bannerEnabled, text: j.bannerText || '' }))
-      .catch(() => setBanner({ enabled: false, text: '' }));
-  }, []);
+  const toggleSidebar = () => setSidebarOpen((v) => !v);
 
-  // Handle special routes (non-dashboard views)
-  if (view.type === 'short-url') {
-    return <URLRedirect shortCode={view.code} />;
-  } else if (view.type === 'secret') {
-    return <SecretView secretCode={view.code} />;
-  } else if (view.type === 'paste') {
-    return <PasteView pasteCode={view.code} />;
-  } else if (view.type === 'paste-list') {
-    return <PasteList />;
-  } else if (view.type === '404') {
-    return <NotFound />;
-  }
+  const formatTime = (date: Date) => {
+    // 12-hour with AM/PM, live
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    });
+  };
 
-  const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
-
-  // Get current time
-  const [currentTime, setCurrentTime] = useState(new Date());
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
 
   const getGreeting = () => {
     const hour = currentTime.getHours();
@@ -111,202 +125,210 @@ function App() {
     return 'Good evening';
   };
 
-  const formatTime = (date: Date) => {
-    // Force 12-hour clock with AM/PM (avoid locale/system 24h preferences)
-    const hours24 = date.getHours();
-    const hours12 = ((hours24 + 11) % 12) + 1; // 1..12
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const seconds = String(date.getSeconds()).padStart(2, '0');
-    const ampm = hours24 >= 12 ? 'PM' : 'AM';
-    return `${hours12}:${minutes}:${seconds} ${ampm}`;
-  };
+  const utilities = [
+    { id: 'quicklinks', label: 'Quick Links', icon: '🔗', desc: 'Manage bookmarks' },
+    { id: 'projects', label: 'Projects', icon: '📁', desc: 'Track your work' },
+    { id: 'triggers', label: 'Triggers', icon: '⚡', desc: 'Run webhooks' },
+    { id: 'shortener', label: 'URL Shortener', icon: '✂️', desc: 'Shorten URLs' },
+    { id: 'secrets', label: 'Secret Sharing', icon: '🔒', desc: 'One-time links' },
+    { id: 'qr', label: 'QR Generator', icon: '📱', desc: 'Generate QR codes' },
+    { id: 'pastebin', label: 'Pastebin', icon: '📝', desc: 'Share code/text' },
+  ];
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      month: 'short', 
-      day: 'numeric' 
+  const navItems = [
+    { id: 'home', label: 'Home', icon: <Home className="w-5 h-5" />, view: { type: 'home' as const } },
+    { id: 'utilities', label: 'Utilities', icon: <Wrench className="w-5 h-5" />, view: { type: 'utilities' as const } },
+    { id: 'admin', label: 'Admin', icon: <Shield className="w-5 h-5" />, view: { type: 'admin' as const } },
+  ];
+
+  const renderHome = () => (
+    <div className="w-full">
+      <div className="text-center mb-8">
+        <h2 className="text-3xl font-semibold text-indigo-300">Quick Links</h2>
+      </div>
+      <Quicklinks editMode={false} />
+    </div>
+  );
+
+  const renderUtilities = () => {
+    const [showDescriptions, setShowDescriptions] = useState(() => {
+      try {
+        const saved = localStorage.getItem('utilities_show_desc');
+        return saved === 'true';
+      } catch {
+        return false;
+      }
     });
+
+    useEffect(() => {
+      try {
+        localStorage.setItem('utilities_show_desc', String(showDescriptions));
+      } catch {
+        // ignore
+      }
+    }, [showDescriptions]);
+
+    if (view.type === 'tool') {
+      if (view.tool === 'redirect') return <URLRedirect />;
+    }
+
+    if (view.type === 'tool') {
+      return (
+        <div className="space-y-6">
+          <button
+            onClick={() => setView({ type: 'utilities' })}
+            className="text-slate-300 hover:text-white flex items-center gap-2"
+          >
+            ← Back to Utilities
+          </button>
+
+          {view.tool === 'quicklinks' && <Quicklinks editMode={true} />}
+          {view.tool === 'projects' && <ProjectsCenter />}
+          {view.tool === 'triggers' && <Triggers />}
+          {view.tool === 'shortener' && <URLShortener />}
+          {view.tool === 'secrets' && <SecretSharing />}
+          {view.tool === 'qr' && <QRCodeGenerator />}
+          {view.tool === 'pastebin' && <Pastebin />}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-8">
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <h2 className="text-3xl font-semibold text-white">Utilities</h2>
+          </div>
+
+          <button
+            onClick={() => setShowDescriptions((v) => !v)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-700 bg-slate-900/30 hover:bg-slate-900/50 text-slate-200 transition-colors"
+            aria-pressed={showDescriptions}
+          >
+            <div className="h-6 w-6 rounded-lg border border-slate-700 bg-slate-800/60 flex items-center justify-center">
+              <span className="text-sm font-semibold text-slate-200">i</span>
+            </div>
+            <span className="text-sm font-medium">
+              {showDescriptions ? 'Hide Descriptions' : 'Show Descriptions'}
+            </span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {utilities.map((tool) => (
+            <button
+              key={tool.id}
+              onClick={() => setView({ type: 'tool', tool: tool.id })}
+              className="group text-left bg-slate-900/30 border border-slate-800/60 hover:border-slate-700 rounded-2xl p-6 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl border border-slate-800 bg-slate-900/50 flex items-center justify-center text-lg">
+                  {tool.icon}
+                </div>
+                <div>
+                  <div className="text-lg font-semibold text-white">{tool.label}</div>
+                  {showDescriptions && (
+                    <div className="text-sm text-slate-400 mt-1">{tool.desc}</div>
+                  )}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
+    <div className="min-h-screen text-white relative overflow-hidden">
       <AnimatedBackground />
+      <div className="relative z-10 min-h-screen flex flex-col">
+        {/* Header */}
+        <header className="relative z-20 border-b border-slate-800/50 bg-slate-950/80 backdrop-blur">
+          <div className="px-8 py-6 flex items-start justify-between">
+            <div className="flex items-start gap-6">
+              <button
+                onClick={toggleSidebar}
+                className="p-3 hover:bg-slate-800/50 bg-slate-900/30 border border-slate-800/60 rounded-xl transition-colors"
+                aria-label="Toggle menu"
+              >
+                {sidebarOpen ? <X className="w-7 h-7" /> : <Menu className="w-7 h-7" />}
+              </button>
 
-      {/* Header */}
-      <header className="relative z-20 border-b border-slate-800/50 bg-slate-950/80 backdrop-blur">
-        <div className="px-6 py-4 flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={toggleSidebar}
-              className="p-2 hover:bg-slate-800/50 rounded-lg transition-colors"
-              aria-label="Toggle menu"
-            >
-              {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
-            <div>
-              <h1 className="text-5xl font-bold text-white leading-tight">Olio Workstation</h1>
-              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-4xl text-slate-300">
-                <span className="font-medium">
-                  {getGreeting()} · {formatDate(currentTime)}
-                </span>
-                <span className="font-mono text-slate-200">
-                  {formatTime(currentTime)}
-                </span>
+              <div className="pt-0.5">
+                <h1 className="text-3xl font-semibold tracking-tight text-white">
+                  Olio Workstation
+                </h1>
+                <p className="mt-3 text-xl text-slate-300">
+                  {getGreeting()} · {formatDate(currentTime)} ·{' '}
+                  <span className="font-mono text-slate-200">{formatTime(currentTime)}</span>
+                </p>
               </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Maintenance Banner */}
-      {banner?.enabled && banner.text?.trim() && (
-        <div className="relative z-20 border-b border-amber-500/30 bg-amber-500/10 backdrop-blur">
-          <div className="px-6 py-3 text-sm text-amber-200 flex items-center gap-2">
-            <span className="text-lg">🚨</span>
-            <span>{banner.text}</span>
+        {/* Maintenance Banner */}
+        {banner?.enabled && banner.text?.trim() && (
+          <div className="relative z-20 px-8 pt-4">
+            <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 backdrop-blur px-5 py-4 flex items-start gap-3">
+              <div className="h-10 w-10 rounded-xl border border-amber-500/25 bg-amber-500/10 flex items-center justify-center flex-none">
+                <AlertTriangle className="w-5 h-5 text-amber-200" />
+              </div>
+              <div className="text-base text-amber-100 leading-snug">
+                {banner.text}
+              </div>
+            </div>
           </div>
-        </div>
-      )}
-
-      <div className="relative z-10 flex">
-        {/* Sidebar */}
-        {sidebarOpen && (
-          <aside className="w-80 border-r border-slate-800/50 bg-slate-950/60 backdrop-blur min-h-[calc(100vh-73px)]">
-            <nav className="p-6 space-y-4">
-              <button
-                onClick={() => setView({ type: 'home' })}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                  view.type === 'home'
-                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                    : 'text-slate-300 hover:bg-slate-800/50'
-                }`}
-              >
-                <Home className="w-7 h-7" />
-                <span className="font-semibold text-2xl">Home</span>
-              </button>
-              
-              <button
-                onClick={() => setView({ type: 'utilities' })}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                  view.type === 'utilities' || view.type === 'tool'
-                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                    : 'text-slate-300 hover:bg-slate-800/50'
-                }`}
-              >
-                <Wrench className="w-7 h-7" />
-                <span className="font-semibold text-2xl">Utilities</span>
-              </button>
-
-              <button
-                onClick={() => setView({ type: 'admin' })}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                  view.type === 'admin'
-                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                    : 'text-slate-300 hover:bg-slate-800/50'
-                }`}
-              >
-                <Shield className="w-7 h-7" />
-                <span className="font-semibold text-2xl">Admin</span>
-              </button>
-            </nav>
-          </aside>
         )}
 
-        {/* Main Content */}
-        <main className="flex-1 p-6">
-          {view.type === 'home' && (
-            <div className="max-w-6xl mx-auto">
-              <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                  Quick Links
-                </h2>
-              </div>
-              <Quicklinks editMode={false} />
-            </div>
-          )}
+        <div className="relative z-10 flex flex-1">
+          {/* Sidebar */}
+          {sidebarOpen && (
+            <aside className="w-64 border-r border-slate-800/50 bg-slate-950/40 backdrop-blur">
+              <nav className="p-4 space-y-3">
+                {navItems.map((item) => {
+                  const active =
+                    (view.type === 'home' && item.id === 'home') ||
+                    (view.type === 'utilities' && item.id === 'utilities') ||
+                    (view.type === 'admin' && item.id === 'admin') ||
+                    (view.type === 'tool' && item.id === 'utilities') ||
+                    (view.type === 'secret' && item.id === 'utilities') ||
+                    (view.type === 'paste' && item.id === 'utilities') ||
+                    (view.type === 'paste-list' && item.id === 'utilities');
 
-          {view.type === 'utilities' && (
-            <div className="max-w-6xl mx-auto">
-              <div className="flex items-center justify-between mb-8">
-                <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                  Utilities
-                </h2>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={showToolDescriptions}
-                  onClick={() => setShowToolDescriptions((v) => !v)}
-                  className="group flex items-center gap-3 rounded-xl border border-slate-700/60 bg-slate-900/30 px-4 py-3 text-sm text-slate-200 transition-colors hover:bg-slate-900/50"
-                  title={showToolDescriptions ? 'Hide tool descriptions' : 'Show tool descriptions'}
-                >
-                  <span className="flex items-center gap-2">
-                    {showToolDescriptions ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    <span className="font-medium">Descriptions</span>
-                  </span>
-                  <span
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full border transition-colors ${
-                      showToolDescriptions
-                        ? 'bg-blue-500/25 border-blue-500/40'
-                        : 'bg-slate-800/60 border-slate-700/60'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-5 w-5 transform rounded-full bg-white/90 shadow transition-transform ${
-                        showToolDescriptions ? 'translate-x-5' : 'translate-x-1'
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setView(item.view)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+                        active
+                          ? 'bg-blue-500/20 border border-blue-500/30 text-blue-200'
+                          : 'hover:bg-slate-800/40 text-slate-200'
                       }`}
-                    />
-                  </span>
-                </button>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[
-                  { id: 'quicklinks', name: 'Quick Links', icon: '🔗', desc: 'Manage bookmarks' },
-                  { id: 'projects', name: 'Projects', icon: '📁', desc: 'Track your work' },
-                  { id: 'triggers', name: 'Triggers', icon: '⚡', desc: 'Run webhooks' },
-                  { id: 'url', name: 'URL Shortener', icon: '🔗', desc: 'Create short URLs' },
-                  { id: 'secrets', name: 'Secret Sharing', icon: '🔒', desc: 'One-time secrets' },
-                  { id: 'qr', name: 'QR Generator', icon: '📱', desc: 'Generate QR codes' },
-                  { id: 'pastebin', name: 'Pastebin', icon: '📝', desc: 'Share code/text' },
-                ].map((tool) => (
-                  <button
-                    key={tool.id}
-                    onClick={() => setView({ type: 'tool', tool: tool.id })}
-                    className="bg-slate-800/50 hover:bg-slate-700/50 rounded-xl p-6 border border-slate-700/50 hover:border-slate-600 transition-all text-left"
-                  >
-                    <div className="text-3xl mb-3">{tool.icon}</div>
-                    <h3 className="text-xl font-semibold text-white mb-2">{tool.name}</h3>
-                    {showToolDescriptions && (
-                      <p className="text-sm text-slate-400">{tool.desc}</p>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
+                    >
+                      {item.icon}
+                      <span className="text-base font-medium">{item.label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+            </aside>
           )}
 
-          {view.type === 'tool' && (
-            <div className="max-w-6xl mx-auto">
-              <button
-                onClick={() => setView({ type: 'utilities' })}
-                className="mb-6 flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors"
-              >
-                ← Back to Utilities
-              </button>
-              
-              {view.tool === 'quicklinks' && <Quicklinks editMode={true} />}
-              {view.tool === 'projects' && <ProjectsCenter />}
-              {view.tool === 'triggers' && <Triggers />}
-              {view.tool === 'url' && <URLShortener />}
-              {view.tool === 'secrets' && <SecretSharing />}
-              {view.tool === 'qr' && <QRCodeGenerator />}
-              {view.tool === 'pastebin' && <Pastebin />}
-            </div>
-          )}
-
-          {view.type === 'admin' && <Admin />}
-        </main>
+          {/* Main Content */}
+          <main className="flex-1 p-8">
+            {view.type === 'home' && renderHome()}
+            {view.type === 'utilities' && renderUtilities()}
+            {view.type === 'tool' && renderUtilities()}
+            {view.type === 'secret' && <SecretView code={view.code} />}
+            {view.type === 'paste' && <PasteView code={view.code} />}
+            {view.type === 'paste-list' && <PasteList />}
+            {view.type === 'admin' && <Admin />}
+            {view.type === 'tool' && view.tool === 'redirect' && <URLRedirect />}
+            {view.type === 'tool' && view.tool === 'notfound' && <NotFound />}
+          </main>
+        </div>
       </div>
     </div>
   );
