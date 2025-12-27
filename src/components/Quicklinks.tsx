@@ -26,6 +26,44 @@ export function Quicklinks({ editMode = false }: Props) {
   const [url, setUrl] = useState('');
   const [icon, setIcon] = useState('🔗');
 
+  const looksLikeUrl = (value: string) => {
+    const v = (value || '').trim();
+    return v.startsWith('http://') || v.startsWith('https://');
+  };
+
+  const faviconFor = (rawUrl: string) => {
+    try {
+      const u = new URL(formatUrl(rawUrl));
+      // Google's favicon endpoint is simple and works for most sites.
+      return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(u.hostname)}&sz=64`;
+    } catch {
+      return '';
+    }
+  };
+
+  const LinkIcon = ({ link, size = 40 }: { link: Quicklink; size?: number }) => {
+    const customImg = looksLikeUrl(link.icon) ? link.icon.trim() : '';
+    const fallbackEmoji = (!looksLikeUrl(link.icon) && (link.icon || '').trim()) ? (link.icon || '🔗') : '🔗';
+    const favicon = faviconFor(link.url);
+    const primarySrc = customImg || favicon;
+    const [imgOk, setImgOk] = useState(!!primarySrc);
+
+    if (primarySrc && imgOk) {
+      return (
+        <img
+          src={primarySrc}
+          alt=""
+          width={size}
+          height={size}
+          className="rounded-md"
+          onError={() => setImgOk(false)}
+        />
+      );
+    }
+
+    return <span className="leading-none" style={{ fontSize: Math.round(size * 0.9) }}>{fallbackEmoji}</span>;
+  };
+
   useEffect(() => {
     loadLinks();
   }, []);
@@ -126,7 +164,9 @@ export function Quicklinks({ editMode = false }: Props) {
             rel="noopener noreferrer"
             className="group bg-slate-800/50 hover:bg-slate-700/50 backdrop-blur rounded-xl p-6 border border-slate-700/50 hover:border-slate-600 transition-all flex flex-col items-center justify-center text-center"
           >
-            <div className="text-4xl mb-3">{link.icon || '🔗'}</div>
+            <div className="mb-3">
+              <LinkIcon link={link} size={42} />
+            </div>
             <h3 className="text-white font-medium group-hover:text-blue-400 transition-colors">
               {link.title}
             </h3>
@@ -167,14 +207,17 @@ export function Quicklinks({ editMode = false }: Props) {
           </h3>
           <div className="space-y-3">
             <div>
-              <label className="block text-sm text-slate-300 mb-2">Icon (emoji)</label>
+              <label className="block text-sm text-slate-300 mb-2">Icon (emoji or image URL)</label>
               <input
                 type="text"
-                placeholder="🔗"
+                placeholder="🔗  or  https://example.com/icon.png"
                 value={icon}
                 onChange={(e) => setIcon(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              <p className="mt-2 text-xs text-slate-400">
+                If you leave this as an emoji, Olio will try to show the site favicon automatically.
+              </p>
             </div>
             <div>
               <label className="block text-sm text-slate-300 mb-2">Title</label>
@@ -225,7 +268,9 @@ export function Quicklinks({ editMode = false }: Props) {
               <GripVertical className="w-4 h-4 text-slate-400" />
             </button>
             
-            <div className="text-4xl mb-3">{link.icon || '🔗'}</div>
+            <div className="mb-3">
+              <LinkIcon link={link} size={42} />
+            </div>
             <h3 className="text-white font-medium mb-3">{link.title}</h3>
             
             <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
