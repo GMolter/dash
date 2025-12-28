@@ -21,6 +21,7 @@ type View =
   | { type: 'utilities' }
   | { type: 'admin' }
   | { type: 'tool'; tool: string }
+  | { type: 'redirect'; code: string }
   | { type: 'secret'; code: string }
   | { type: 'paste'; code: string }
   | { type: 'paste-list' };
@@ -40,7 +41,7 @@ function App() {
 
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // ✅ Banner comes from the same API Admin uses
+  // Banner comes from the same API Admin uses
   const [banner, setBanner] = useState<BannerState>({ enabled: false, text: '' });
 
   useEffect(() => {
@@ -56,7 +57,7 @@ function App() {
     }
   }, [sidebarOpen]);
 
-  // ✅ Load banner from /api/public/settings
+  // Load banner from /api/public/settings
   useEffect(() => {
     let cancelled = false;
 
@@ -71,7 +72,6 @@ function App() {
           text: j.bannerText || '',
         });
       } catch {
-        // If API isn't reachable, just keep banner hidden.
         if (cancelled) return;
         setBanner({ enabled: false, text: '' });
       }
@@ -91,39 +91,68 @@ function App() {
     };
   }, []);
 
+  // Route resolution order:
+  // 1) Known app routes (/admin, /utilities, /pastes)
+  // 2) Known prefixes (/s/:code, /p/:code)
+  // 3) Unknown single-segment -> URL shortener redirect lookup
+  // 4) Otherwise -> home
   useEffect(() => {
-    const path = window.location.pathname;
+    const resolve = () => {
+      const path = window.location.pathname || '/';
 
-    if (path.startsWith('/s/')) {
-      const code = path.replace('/s/', '').split('/')[0];
-      setView({ type: 'secret', code });
-      return;
-    }
+      // Normalize double slashes etc.
+      const cleanPath = path.replace(/\/+$/, '') || '/';
 
-    if (path.startsWith('/p/')) {
-      const code = path.replace('/p/', '').split('/')[0];
-      setView({ type: 'paste', code });
-      return;
-    }
+      if (cleanPath === '/admin') {
+        setView({ type: 'admin' });
+        return;
+      }
 
-    if (path === '/pastes') {
-      setView({ type: 'paste-list' });
-      return;
-    }
+      if (cleanPath === '/utilities') {
+        setView({ type: 'utilities' });
+        return;
+      }
 
-    const maybeCode = path.replace('/', '');
-    if (maybeCode && !['home', 'utilities', 'admin'].includes(maybeCode)) {
-      setView({ type: 'tool', tool: 'redirect' });
-      return;
-    }
+      if (cleanPath === '/pastes') {
+        setView({ type: 'paste-list' });
+        return;
+      }
 
-    setView({ type: 'home' });
+      if (cleanPath.startsWith('/s/')) {
+        const code = cleanPath.replace('/s/', '').split('/')[0];
+        if (code) setView({ type: 'secret', code });
+        else setView({ type: 'tool', tool: 'notfound' });
+        return;
+      }
+
+      if (cleanPath.startsWith('/p/')) {
+        const code = cleanPath.replace('/p/', '').split('/')[0];
+        if (code) setView({ type: 'paste', code });
+        else setView({ type: 'tool', tool: 'notfound' });
+        return;
+      }
+
+      // Unknown single segment (e.g. /abc123) -> check short_urls
+      const maybeCode = cleanPath.replace(/^\//, '');
+      if (maybeCode && !['home', 'admin', 'utilities', 'pastes'].includes(maybeCode)) {
+        setView({ type: 'redirect', code: maybeCode });
+        return;
+      }
+
+      setView({ type: 'home' });
+    };
+
+    resolve();
+
+    // Support back/forward navigation.
+    window.addEventListener('popstate', resolve);
+    return () => window.removeEventListener('popstate', resolve);
   }, []);
 
   const toggleSidebar = () => setSidebarOpen((v) => !v);
 
   const formatTime = (date: Date) => {
-    // ✅ 12-hour + AM/PM
+    // 12-hour + AM/PM
     return date.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
@@ -174,8 +203,6 @@ function App() {
 
   const renderUtilities = () => {
     if (view.type === 'tool') {
-      if (view.tool === 'redirect') return <URLRedirect />;
-
       return (
         <div className="space-y-6">
           <button
@@ -212,7 +239,6 @@ function App() {
         <header className="relative z-20 border-b border-slate-800/50 bg-slate-950/80 backdrop-blur">
           <div className="px-10 py-7 flex items-start justify-between">
             <div className="flex items-start gap-8">
-              {/* ✅ Bigger toggle button + more breathing room */}
               <button
                 onClick={toggleSidebar}
                 className="p-4 hover:bg-slate-800/50 bg-slate-900/30 border border-slate-800/60 rounded-2xl transition-colors"
@@ -222,12 +248,10 @@ function App() {
               </button>
 
               <div className="pt-1">
-                {/* ✅ Not absurdly huge, but prominent */}
                 <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-white">
                   Olio Workstation
                 </h1>
 
-                {/* ✅ Greeting/date/time close in “one line group”, but not cramped */}
                 <p className="mt-4 text-lg md:text-xl text-slate-300">
                   {getGreeting()} · {formatDate(currentTime)} ·{' '}
                   <span className="font-mono text-slate-200">{formatTime(currentTime)}</span>
@@ -237,7 +261,7 @@ function App() {
           </div>
         </header>
 
-        {/* ✅ Larger, rounded banner that matches site scale */}
+        {/* Maintenance Banner */}
         {banner.enabled && banner.text?.trim() && (
           <div className="relative z-20 px-10 pt-5">
             <div className="rounded-3xl border border-amber-500/25 bg-amber-500/12 backdrop-blur px-6 py-5 flex items-start gap-4">
@@ -264,7 +288,8 @@ function App() {
                     (view.type === 'tool' && item.id === 'utilities') ||
                     (view.type === 'secret' && item.id === 'utilities') ||
                     (view.type === 'paste' && item.id === 'utilities') ||
-                    (view.type === 'paste-list' && item.id === 'utilities');
+                    (view.type === 'paste-list' && item.id === 'utilities') ||
+                    (view.type === 'redirect' && item.id === 'utilities');
 
                   return (
                     <button
@@ -290,6 +315,7 @@ function App() {
             {view.type === 'home' && renderHome()}
             {view.type === 'utilities' && renderUtilities()}
             {view.type === 'tool' && renderUtilities()}
+            {view.type === 'redirect' && <URLRedirect shortCode={view.code} />}
             {view.type === 'secret' && <SecretView code={view.code} />}
             {view.type === 'paste' && <PasteView code={view.code} />}
             {view.type === 'paste-list' && <PasteList />}
