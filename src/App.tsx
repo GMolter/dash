@@ -92,8 +92,9 @@ function App() {
   }, []);
 
   // Route resolution order:
-  // 1) Known app routes (/admin, /utilities, /pastes)
+  // 1) Known app routes (/admin, /utilities, /p, /pastes)
   // 2) Known prefixes (/s/:code, /p/:code)
+  //    (also supports legacy share routes: /secret/:code, /paste/:code)
   // 3) Unknown single-segment -> URL shortener redirect lookup
   // 4) Otherwise -> home
   useEffect(() => {
@@ -105,21 +106,39 @@ function App() {
 
       if (cleanPath === '/admin') {
         setView({ type: 'admin' });
+
+        // QoL: keep the URL bar clean for the admin panel.
+        if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
         return;
       }
 
       if (cleanPath === '/utilities') {
         setView({ type: 'utilities' });
+
+        // QoL: keep the URL bar clean for the utilities hub.
+        if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
         return;
       }
 
-      if (cleanPath === '/pastes') {
+      if (cleanPath === '/p' || cleanPath === '/pastes') {
         setView({ type: 'paste-list' });
+
+        // QoL: keep the URL bar clean for app pages.
+        // (Only for non-share routes. Secret/paste share links should keep their paths.)
+        if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
         return;
       }
 
       if (cleanPath.startsWith('/s/')) {
         const code = cleanPath.replace('/s/', '').split('/')[0];
+        if (code) setView({ type: 'secret', code });
+        else setView({ type: 'tool', tool: 'notfound' });
+        return;
+      }
+
+      // Legacy secret route
+      if (cleanPath.startsWith('/secret/')) {
+        const code = cleanPath.replace('/secret/', '').split('/')[0];
         if (code) setView({ type: 'secret', code });
         else setView({ type: 'tool', tool: 'notfound' });
         return;
@@ -132,9 +151,17 @@ function App() {
         return;
       }
 
+      // Legacy paste route
+      if (cleanPath.startsWith('/paste/')) {
+        const code = cleanPath.replace('/paste/', '').split('/')[0];
+        if (code) setView({ type: 'paste', code });
+        else setView({ type: 'tool', tool: 'notfound' });
+        return;
+      }
+
       // Unknown single segment (e.g. /abc123) -> check short_urls
       const maybeCode = cleanPath.replace(/^\//, '');
-      if (maybeCode && !['home', 'admin', 'utilities', 'pastes'].includes(maybeCode)) {
+      if (maybeCode && !['home', 'admin', 'utilities', 'p', 'pastes'].includes(maybeCode)) {
         setView({ type: 'redirect', code: maybeCode });
         return;
       }
@@ -316,8 +343,8 @@ function App() {
             {view.type === 'utilities' && renderUtilities()}
             {view.type === 'tool' && renderUtilities()}
             {view.type === 'redirect' && <URLRedirect shortCode={view.code} />}
-            {view.type === 'secret' && <SecretView code={view.code} />}
-            {view.type === 'paste' && <PasteView code={view.code} />}
+            {view.type === 'secret' && <SecretView secretCode={view.code} />}
+            {view.type === 'paste' && <PasteView pasteCode={view.code} />}
             {view.type === 'paste-list' && <PasteList />}
             {view.type === 'admin' && <Admin />}
             {view.type === 'tool' && view.tool === 'notfound' && <NotFound />}
