@@ -55,15 +55,14 @@ export function SecretSharing() {
   };
 
   const copyToClipboard = (secretCode: string) => {
-    const secretUrl = `${window.location.origin}/secret/${secretCode}`;
+    // Share route (keeps the path; App also supports legacy /secret/:code)
+    const secretUrl = `${window.location.origin}/s/${secretCode}`;
     navigator.clipboard.writeText(secretUrl);
     setCopied(secretCode);
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const getSecretUrl = (secretCode: string) => {
-    return `${window.location.origin}/secret/${secretCode}`;
-  };
+  const getSecretUrl = (secretCode: string) => `${window.location.origin}/s/${secretCode}`;
 
   const isExpired = (expiresAt: string) => {
     return new Date(expiresAt) < new Date();
