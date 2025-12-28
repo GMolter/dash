@@ -75,7 +75,7 @@ export function PasteList() {
               {pastes.map((paste) => (
                 <a
                   key={paste.id}
-                  href={`/paste/${paste.paste_code}`}
+                  href={`/p/${paste.paste_code}`}
                   className={`block bg-slate-800/50 backdrop-blur-sm hover:bg-slate-800/80 rounded-lg p-6 border border-slate-700 transition-all hover:border-slate-600 ${
                     isExpired(paste.expires_at) ? 'opacity-50' : ''
                   }`}
