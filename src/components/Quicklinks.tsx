@@ -255,8 +255,6 @@ export function Quicklinks({ editMode = false }: Props) {
           <a
             key={link.id}
             href={formatUrl(link.url)}
-            target="_blank"
-            rel="noopener noreferrer"
             className="group bg-slate-800/50 hover:bg-slate-700/50 backdrop-blur rounded-xl p-6 border border-slate-700/50 hover:border-slate-600 transition-all flex flex-col items-center justify-center text-center"
           >
             <div className="mb-3">
