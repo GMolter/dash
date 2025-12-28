@@ -96,15 +96,14 @@ export function Pastebin() {
   };
 
   const copyToClipboard = (pasteCode: string) => {
-    const pasteUrl = `${window.location.origin}/paste/${pasteCode}`;
+    // Share route (keeps the path; App also supports legacy /paste/:code)
+    const pasteUrl = `${window.location.origin}/p/${pasteCode}`;
     navigator.clipboard.writeText(pasteUrl);
     setCopied(pasteCode);
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const getPasteUrl = (pasteCode: string) => {
-    return `/paste/${pasteCode}`;
-  };
+  const getPasteUrl = (pasteCode: string) => `/p/${pasteCode}`;
 
   const isExpired = (expiresAt?: string) => {
     if (!expiresAt) return false;
