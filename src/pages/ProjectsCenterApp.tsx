@@ -212,13 +212,11 @@ export function ProjectsCenterApp({
       },
     ];
 
-    // You said: can create + edit here, but NOT open dashboard yet.
-    // So "Open: <project>" stays visible, but is disabled.
     const proj: BannerAction[] = projects.slice(0, 50).map((p) => ({
       id: `open-${p.id}`,
       kind: 'project',
       label: `Open: ${p.name}`,
-      hint: 'Dashboard soon',
+      hint: 'Dashboard',
       disabled: true,
       run: () => {
         // intentionally disabled for now
@@ -238,7 +236,7 @@ export function ProjectsCenterApp({
   }, [commandItems.length, commandOpen]);
 
   // Global hotkeys:
-  // - Ctrl+K opens palette (override browser focus)
+  // - Ctrl+K opens palette
   // - Hold Ctrl shows shortcut overlay
   // - Arrow/Enter for palette selection
   // - Esc closes
@@ -514,10 +512,6 @@ export function ProjectsCenterApp({
                       )}
                     </div>
 
-                    <div className="mt-4 text-xs text-slate-500">
-                      Dashboard coming next — project open is disabled for now.
-                    </div>
-
                     {/* Keep this wired for later, but disabled now */}
                     <button
                       onClick={() => onOpenProject(p.id)}
@@ -548,9 +542,6 @@ export function ProjectsCenterApp({
               <div className="flex items-center justify-between">
                 <span className="text-slate-200">Close modals</span>
                 <span className="font-mono text-slate-100 border border-slate-700/70 rounded-lg px-2 py-1">Esc</span>
-              </div>
-              <div className="text-xs text-slate-500 pt-1">
-                Ctrl+N is intentionally not used (browser shortcut).
               </div>
             </div>
           </div>
@@ -605,7 +596,7 @@ export function ProjectsCenterApp({
             <div>
               <div className="text-sm text-slate-300 mb-2">Status</div>
               <div className="w-full px-4 py-3 rounded-2xl bg-slate-950/40 border border-slate-800/60 text-slate-200">
-                Planning (default)
+                Planning
               </div>
             </div>
           </div>
@@ -689,9 +680,8 @@ export function ProjectsCenterApp({
               {commandItems.length === 0 && <div className="px-4 py-6 text-slate-300">No results.</div>}
             </div>
 
-            <div className="px-4 py-3 border-t border-slate-800/60 text-xs text-slate-400 flex items-center justify-between">
+            <div className="px-4 py-3 border-t border-slate-800/60 text-xs text-slate-400">
               <span>Use ↑ ↓ then Enter</span>
-              <span>Dashboard open is disabled in Projects Center</span>
             </div>
           </div>
         </div>
