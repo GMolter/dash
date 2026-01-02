@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AnimatedBackground } from './components/AnimatedBackground';
 import { Quicklinks } from './components/Quicklinks';
+import { ProjectsCenter } from './components/ProjectsCenter';
 import { Triggers } from './components/Triggers';
 import { URLShortener } from './components/URLShortener';
 import { SecretSharing } from './components/SecretSharing';
@@ -12,22 +13,25 @@ import { PasteView } from './pages/PasteView';
 import { PasteList } from './pages/PasteList';
 import { NotFound } from './pages/NotFound';
 import Admin from './pages/Admin';
-import { ProjectsCenterApp } from './pages/ProjectsCenterApp';
-import { ProjectShell } from './pages/ProjectShell';
 import { UtilitiesHub } from './components/UtilitiesHub';
 import { Home, Wrench, Shield, Menu, X, AlertTriangle } from 'lucide-react';
+
+// ✅ NEW imports (adjust path if needed)
+import { ProjectsCenterApp } from './pages/ProjectsCenterApp';
+import ProjectDashboard from './pages/ProjectDashboard';
 
 type View =
   | { type: 'home' }
   | { type: 'utilities' }
   | { type: 'admin' }
-  | { type: 'projects-center' }
-  | { type: 'project'; id?: string }
   | { type: 'tool'; tool: string }
   | { type: 'redirect'; code: string }
   | { type: 'secret'; code: string }
   | { type: 'paste'; code: string }
-  | { type: 'paste-list' };
+  | { type: 'paste-list' }
+  // ✅ NEW views
+  | { type: 'projects-center' }
+  | { type: 'project-dashboard'; id: string };
 
 type BannerState = { enabled: boolean; text: string };
 
@@ -95,40 +99,48 @@ function App() {
   }, []);
 
   // Route resolution order:
-  // 1) Known app routes (/admin, /utilities, /p, /pastes, /projects)
-  // 2) Known prefixes (/s/:code, /p/:code) (also legacy /secret/:code, /paste/:code)
+  // 1) Known app routes
+  // 2) Known prefixes (/s/:code, /p/:code)
   // 3) Unknown single-segment -> URL shortener redirect lookup
   // 4) Otherwise -> home
   useEffect(() => {
     const resolve = () => {
       const path = window.location.pathname || '/';
+
+      // Normalize double slashes etc.
       const cleanPath = path.replace(/\/+$/, '') || '/';
 
-      // ✅ Projects Center (known route; NOT a short-url)
+      // ✅ Projects routes (standalone)
       if (cleanPath === '/projects') {
         setView({ type: 'projects-center' });
         return;
       }
       if (cleanPath.startsWith('/projects/')) {
         const id = cleanPath.replace('/projects/', '').split('/')[0];
-        setView({ type: 'project', id });
+        if (id) setView({ type: 'project-dashboard', id });
+        else setView({ type: 'projects-center' });
         return;
       }
 
       if (cleanPath === '/admin') {
         setView({ type: 'admin' });
+
+        // QoL: keep the URL bar clean for the admin panel.
         if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
         return;
       }
 
       if (cleanPath === '/utilities') {
         setView({ type: 'utilities' });
+
+        // QoL: keep the URL bar clean for the utilities hub.
         if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
         return;
       }
 
       if (cleanPath === '/p' || cleanPath === '/pastes') {
         setView({ type: 'paste-list' });
+
         if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
         return;
       }
@@ -140,6 +152,7 @@ function App() {
         return;
       }
 
+      // Legacy secret route
       if (cleanPath.startsWith('/secret/')) {
         const code = cleanPath.replace('/secret/', '').split('/')[0];
         if (code) setView({ type: 'secret', code });
@@ -154,6 +167,7 @@ function App() {
         return;
       }
 
+      // Legacy paste route
       if (cleanPath.startsWith('/paste/')) {
         const code = cleanPath.replace('/paste/', '').split('/')[0];
         if (code) setView({ type: 'paste', code });
@@ -161,9 +175,9 @@ function App() {
         return;
       }
 
-      // Unknown single segment -> check short_urls
+      // Unknown single segment (e.g. /abc123) -> check short_urls
       const maybeCode = cleanPath.replace(/^\//, '');
-      if (maybeCode && !['home', 'admin', 'utilities', 'projects', 'p', 'pastes'].includes(maybeCode)) {
+      if (maybeCode && !['home', 'admin', 'utilities', 'p', 'pastes', 'projects'].includes(maybeCode)) {
         setView({ type: 'redirect', code: maybeCode });
         return;
       }
@@ -172,26 +186,29 @@ function App() {
     };
 
     resolve();
+
     window.addEventListener('popstate', resolve);
     return () => window.removeEventListener('popstate', resolve);
   }, []);
 
   const toggleSidebar = () => setSidebarOpen((v) => !v);
 
-  const formatTime = (date: Date) =>
-    date.toLocaleTimeString('en-US', {
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
       second: '2-digit',
       hour12: true,
     });
+  };
 
-  const formatDate = (date: Date) =>
-    date.toLocaleDateString('en-US', {
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
     });
+  };
 
   const getGreeting = () => {
     const hour = currentTime.getHours();
@@ -216,31 +233,6 @@ function App() {
     { id: 'admin', label: 'Admin', icon: <Shield className="w-5 h-5" />, view: { type: 'admin' as const } },
   ];
 
-  // ✅ Projects Center is its own experience (no Olio Workstation chrome)
-  if (view.type === 'projects-center') {
-    return (
-      <ProjectsCenterApp
-        onOpenProject={(id) => {
-          window.history.pushState({}, '', `/projects/${id}`);
-          window.dispatchEvent(new PopStateEvent('popstate'));
-        }}
-      />
-    );
-  }
-
-  // (placeholder for now — dashboard comes next)
-  if (view.type === 'project') {
-    return (
-      <ProjectShell
-        projectId={view.id}
-        onBack={() => {
-          window.history.pushState({}, '', '/projects');
-          window.dispatchEvent(new PopStateEvent('popstate'));
-        }}
-      />
-    );
-  }
-
   const renderHome = () => (
     <div className="w-full">
       <div className="text-center mb-8">
@@ -252,13 +244,6 @@ function App() {
 
   const renderUtilities = () => {
     if (view.type === 'tool') {
-      // Projects now lives at /projects as its own app.
-      if (view.tool === 'projects') {
-        window.history.pushState({}, '', '/projects');
-        window.dispatchEvent(new PopStateEvent('popstate'));
-        return null;
-      }
-
       return (
         <div className="space-y-6">
           <button
@@ -269,6 +254,7 @@ function App() {
           </button>
 
           {view.tool === 'quicklinks' && <Quicklinks editMode={true} />}
+          {view.tool === 'projects' && <ProjectsCenter />}
           {view.tool === 'triggers' && <Triggers />}
           {view.tool === 'shortener' && <URLShortener />}
           {view.tool === 'secrets' && <SecretSharing />}
@@ -278,8 +264,22 @@ function App() {
       );
     }
 
-    return <UtilitiesHub tools={utilities} onOpenTool={(toolId) => setView({ type: 'tool', tool: toolId })} />;
+    return (
+      <UtilitiesHub
+        tools={utilities}
+        onOpenTool={(toolId) => setView({ type: 'tool', tool: toolId })}
+      />
+    );
   };
+
+  // ✅ Standalone projects app pages (no main header/sidebar shell)
+  if (view.type === 'projects-center') {
+    return <ProjectsCenterApp onOpenProject={(id) => navigateTo(`/projects/${id}`)} />;
+  }
+
+  if (view.type === 'project-dashboard') {
+    return <ProjectDashboard projectId={view.id} />;
+  }
 
   return (
     <div className="min-h-screen text-white relative overflow-hidden">
@@ -298,7 +298,9 @@ function App() {
               </button>
 
               <div className="pt-1">
-                <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-white">Olio Workstation</h1>
+                <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-white">
+                  Olio Workstation
+                </h1>
 
                 <p className="mt-4 text-lg md:text-xl text-slate-300">
                   {getGreeting()} · {formatDate(currentTime)} ·{' '}
@@ -316,7 +318,9 @@ function App() {
               <div className="h-11 w-11 rounded-2xl border border-amber-500/25 bg-amber-500/12 flex items-center justify-center flex-none">
                 <AlertTriangle className="w-5 h-5 text-amber-200" />
               </div>
-              <div className="text-base md:text-lg text-amber-100 leading-snug">{banner.text}</div>
+              <div className="text-base md:text-lg text-amber-100 leading-snug">
+                {banner.text}
+              </div>
             </div>
           </div>
         )}
@@ -375,3 +379,9 @@ function App() {
 }
 
 export default App;
+
+// helper used above
+function navigateTo(path: string) {
+  window.history.pushState({}, '', path);
+  window.dispatchEvent(new PopStateEvent('popstate'));
+}
