@@ -145,7 +145,9 @@ export function ProjectsCenterApp({
 
     const sorted = [...list];
     if (sort === 'recent') {
-      sorted.sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
+      sorted.sort(
+        (a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime()
+      );
     } else if (sort === 'name') {
       sorted.sort((a, b) => a.name.localeCompare(b.name));
     } else if (sort === 'status') {
@@ -212,14 +214,14 @@ export function ProjectsCenterApp({
       },
     ];
 
-    const proj: BannerAction[] = projects.slice(0, 50).map((p) => ({
+    const proj: BannerAction[] = projects.slice(0, 60).map((p) => ({
       id: `open-${p.id}`,
       kind: 'project',
       label: `Open: ${p.name}`,
-      hint: 'Dashboard',
-      disabled: true,
+      hint: 'Project',
       run: () => {
-        // intentionally disabled for now
+        setCommandOpen(false);
+        onOpenProject(p.id);
       },
     }));
 
@@ -227,7 +229,7 @@ export function ProjectsCenterApp({
 
     if (!q) return all;
     return all.filter((i) => `${i.label} ${i.hint}`.toLowerCase().includes(q));
-  }, [commandQuery, projects]);
+  }, [commandQuery, projects, onOpenProject]);
 
   // Keep selectedIndex in bounds when list changes
   useEffect(() => {
@@ -269,11 +271,11 @@ export function ProjectsCenterApp({
         } else if (e.key === 'Enter') {
           e.preventDefault();
           const item = commandItems[selectedIndex];
-          if (item && !('disabled' in item && item.disabled)) item.run();
+          if (!item) return;
+          item.run();
         }
       }
 
-      // Escape closes overlays
       if (e.key === 'Escape') {
         setCommandOpen(false);
         setCreateOpen(false);
@@ -327,8 +329,6 @@ export function ProjectsCenterApp({
       setNewDesc('');
       setTemplate('blank');
       await load();
-      // DO NOT open dashboard yet (per your request)
-      // onOpenProject((data as Project).id);
     }
   }
 
@@ -464,7 +464,7 @@ export function ProjectsCenterApp({
             ) : (
               visibleProjects.map((p) => {
                 const st = clampStatus(p.status);
-                const progress = 0; // dashboard will calculate later
+                const progress = 0;
                 return (
                   <div
                     key={p.id}
@@ -512,12 +512,9 @@ export function ProjectsCenterApp({
                       )}
                     </div>
 
-                    {/* Keep this wired for later, but disabled now */}
                     <button
                       onClick={() => onOpenProject(p.id)}
-                      disabled
-                      className="mt-4 w-full px-4 py-3 rounded-2xl border border-slate-800/60 bg-slate-900/20 text-slate-400 cursor-not-allowed"
-                      title="Dashboard not enabled yet"
+                      className="mt-4 w-full px-4 py-3 rounded-2xl border border-slate-800/60 bg-slate-900/20 hover:bg-slate-900/35 text-slate-100 transition-colors"
                     >
                       Open Project
                     </button>
@@ -657,20 +654,15 @@ export function ProjectsCenterApp({
             <div className="max-h-[520px] overflow-auto p-2">
               {commandItems.map((item, idx) => {
                 const isSelected = idx === selectedIndex;
-                const disabled = 'disabled' in item && item.disabled;
 
                 return (
                   <button
                     key={item.id}
                     onMouseEnter={() => setSelectedIndex(idx)}
-                    onClick={() => {
-                      if (disabled) return;
-                      item.run();
-                    }}
+                    onClick={() => item.run()}
                     className={`w-full text-left px-4 py-3 rounded-2xl transition-colors flex items-center justify-between gap-4 ${
                       isSelected ? 'bg-slate-900/55' : 'hover:bg-slate-900/45'
-                    } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    disabled={disabled}
+                    }`}
                   >
                     <span className="text-slate-100">{item.label}</span>
                     <span className="text-xs text-slate-400">{item.hint}</span>
@@ -731,7 +723,9 @@ function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
       <button className="absolute inset-0 bg-black/55" onClick={onClose} aria-label="Close" />
-      <div className={`relative ${widthClass} rounded-3xl border border-slate-800/60 bg-slate-950/90 backdrop-blur p-6 shadow-2xl`}>
+      <div
+        className={`relative ${widthClass} rounded-3xl border border-slate-800/60 bg-slate-950/90 backdrop-blur p-6 shadow-2xl`}
+      >
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="text-xl font-semibold">{title}</div>
@@ -770,9 +764,7 @@ function TemplateCard({
     <button
       onClick={onClick}
       className={`rounded-3xl border transition-colors p-5 text-left ${
-        active
-          ? 'border-blue-500/40 bg-blue-500/10'
-          : 'border-slate-800/60 bg-slate-950/25 hover:bg-slate-900/40'
+        active ? 'border-blue-500/40 bg-blue-500/10' : 'border-slate-800/60 bg-slate-950/25 hover:bg-slate-900/40'
       }`}
     >
       <div className={`h-11 w-11 rounded-2xl border flex items-center justify-center ${iconClass}`}>{icon}</div>
@@ -812,7 +804,10 @@ function Dropdown<T extends string>({
     <div className="relative" ref={wrapRef}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className={buttonClassName || 'inline-flex items-center gap-2 px-4 py-3 rounded-2xl border border-slate-800/60 bg-slate-950/20 hover:bg-slate-900/35'}
+        className={
+          buttonClassName ||
+          'inline-flex items-center gap-2 px-4 py-3 rounded-2xl border border-slate-800/60 bg-slate-950/20 hover:bg-slate-900/35'
+        }
       >
         {renderValue(value)}
         <ChevronDown className="w-4 h-4 text-slate-400" />
