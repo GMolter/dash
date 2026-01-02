@@ -18,7 +18,8 @@ import { Home, Wrench, Shield, Menu, X, AlertTriangle } from 'lucide-react';
 
 // ✅ NEW imports (adjust path if needed)
 import { ProjectsCenterApp } from './pages/ProjectsCenterApp';
-import ProjectDashboard from './pages/ProjectDashboard';
+import { ProjectDashboard } from './pages/ProjectDashboard';
+
 
 type View =
   | { type: 'home' }
