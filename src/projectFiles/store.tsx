@@ -131,15 +131,21 @@ export async function moveNode(nodeId: string, newParentId: string | null) {
 }
 
 async function nextSortIndex(projectId: string, parentId: string | null) {
-  const { data, error } = await supabase
+  // IMPORTANT:
+  // - parentId is UUID -> use eq
+  // - root items -> parent_id is null -> use is(null)
+  let q = supabase
     .from('project_files')
     .select('sort_index')
     .eq('project_id', projectId)
-    .is('parent_id', parentId)
     .order('sort_index', { ascending: false })
     .limit(1);
 
+  q = parentId ? q.eq('parent_id', parentId) : q.is('parent_id', null);
+
+  const { data, error } = await q;
   if (error) throw error;
+
   const top = (data as any[])?.[0]?.sort_index;
   return (typeof top === 'number' ? top : 0) + 10;
 }
