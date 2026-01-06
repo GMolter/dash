@@ -16,15 +16,21 @@ import Admin from './pages/Admin';
 import { UtilitiesHub } from './components/UtilitiesHub';
 import { Home, Wrench, Shield, Menu, X, AlertTriangle } from 'lucide-react';
 
+import { useAuth } from './auth/AuthContext';
+import { Onboarding } from './pages/Onboarding';
+import { OrgSetup } from './pages/OrgSetup';
+import { SettingsPage } from './pages/Settings';
+import { UserMenu } from './components/UserMenu';
+
 // ✅ NEW imports (adjust path if needed)
 import { ProjectsCenterApp } from './pages/ProjectsCenterApp';
 import { ProjectDashboard } from './pages/ProjectDashboard';
-
 
 type View =
   | { type: 'home' }
   | { type: 'utilities' }
   | { type: 'admin' }
+  | { type: 'settings' }
   | { type: 'tool'; tool: string }
   | { type: 'redirect'; code: string }
   | { type: 'secret'; code: string }
@@ -37,6 +43,8 @@ type View =
 type BannerState = { enabled: boolean; text: string };
 
 function App() {
+  const { loading: authLoading, user, orgId, orgLoading } = useAuth();
+
   const [view, setView] = useState<View>({ type: 'home' });
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     try {
@@ -192,7 +200,7 @@ function App() {
     return () => window.removeEventListener('popstate', resolve);
   }, []);
 
-  const toggleSidebar = () => setSidebarOpen((v) => !v);
+  const toggleSidebar = () => setSidebarOpen((v: boolean) => !v);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', {
@@ -273,13 +281,29 @@ function App() {
     );
   };
 
+  // Public views should remain accessible even when signed out.
+  const isPublicView =
+    view.type === 'redirect' ||
+    view.type === 'secret' ||
+    view.type === 'paste';
+
+  // Gate the main app behind auth.
+  if (!authLoading && !user && !isPublicView) {
+    return <Onboarding />;
+  }
+
+  // After auth, require org membership for the main app.
+  if (!authLoading && user && !orgLoading && !orgId && !isPublicView) {
+    return <OrgSetup />;
+  }
+
   // ✅ Standalone projects app pages (no main header/sidebar shell)
   if (view.type === 'projects-center') {
     return <ProjectsCenterApp onOpenProject={(id) => navigateTo(`/projects/${id}`)} />;
   }
 
   if (view.type === 'project-dashboard') {
-    return <ProjectDashboard projectId={view.id} />;
+    return <ProjectDashboard projectId={view.id} onBack={() => navigateTo('/projects')} />;
   }
 
   return (
@@ -309,6 +333,13 @@ function App() {
                 </p>
               </div>
             </div>
+
+            {/* Top-right profile */}
+            {user && (
+              <div className="pt-1">
+                <UserMenu onOpenSettings={() => setView({ type: 'settings' })} />
+              </div>
+            )}
           </div>
         </header>
 
@@ -371,6 +402,7 @@ function App() {
             {view.type === 'paste' && <PasteView pasteCode={view.code} />}
             {view.type === 'paste-list' && <PasteList />}
             {view.type === 'admin' && <Admin />}
+            {view.type === 'settings' && <SettingsPage onBack={() => setView({ type: 'home' })} />}
             {view.type === 'tool' && view.tool === 'notfound' && <NotFound />}
           </main>
         </div>
