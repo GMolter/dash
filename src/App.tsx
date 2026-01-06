@@ -14,21 +14,23 @@ import { PasteList } from './pages/PasteList';
 import { NotFound } from './pages/NotFound';
 import Admin from './pages/Admin';
 import { UtilitiesHub } from './components/UtilitiesHub';
-import { Home, Wrench, Shield, Menu, X, AlertTriangle } from 'lucide-react';
+import { Home, Wrench, Menu, X, AlertTriangle, Building2 } from 'lucide-react';
 
 import { useAuth } from './auth/AuthContext';
 import { Onboarding } from './pages/Onboarding';
 import { OrgSetup } from './pages/OrgSetup';
 import { SettingsPage } from './pages/Settings';
 import { UserMenu } from './components/UserMenu';
+import { OrganizationPage } from './pages/Organization';
 
-// ✅ NEW imports (adjust path if needed)
+// ✅ Standalone projects app pages (no main header/sidebar shell)
 import { ProjectsCenterApp } from './pages/ProjectsCenterApp';
 import { ProjectDashboard } from './pages/ProjectDashboard';
 
 type View =
   | { type: 'home' }
   | { type: 'utilities' }
+  | { type: 'organization' }
   | { type: 'admin' }
   | { type: 'settings' }
   | { type: 'tool'; tool: string }
@@ -36,7 +38,6 @@ type View =
   | { type: 'secret'; code: string }
   | { type: 'paste'; code: string }
   | { type: 'paste-list' }
-  // ✅ NEW views
   | { type: 'projects-center' }
   | { type: 'project-dashboard'; id: string };
 
@@ -116,7 +117,7 @@ function App() {
     const resolve = () => {
       const path = window.location.pathname || '/';
 
-      // Normalize double slashes etc.
+      // Normalize trailing slashes
       const cleanPath = path.replace(/\/+$/, '') || '/';
 
       // ✅ Projects routes (standalone)
@@ -131,25 +132,28 @@ function App() {
         return;
       }
 
+      // Admin remains accessible by direct route, but is not in sidebar nav
       if (cleanPath === '/admin') {
         setView({ type: 'admin' });
+        if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
+        return;
+      }
 
-        // QoL: keep the URL bar clean for the admin panel.
+      // Optional: allow direct org route (keeps URL clean)
+      if (cleanPath === '/org' || cleanPath === '/organization') {
+        setView({ type: 'organization' });
         if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
         return;
       }
 
       if (cleanPath === '/utilities') {
         setView({ type: 'utilities' });
-
-        // QoL: keep the URL bar clean for the utilities hub.
         if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
         return;
       }
 
       if (cleanPath === '/p' || cleanPath === '/pastes') {
         setView({ type: 'paste-list' });
-
         if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
         return;
       }
@@ -186,7 +190,7 @@ function App() {
 
       // Unknown single segment (e.g. /abc123) -> check short_urls
       const maybeCode = cleanPath.replace(/^\//, '');
-      if (maybeCode && !['home', 'admin', 'utilities', 'p', 'pastes', 'projects'].includes(maybeCode)) {
+      if (maybeCode && !['home', 'admin', 'utilities', 'p', 'pastes', 'projects', 'org', 'organization'].includes(maybeCode)) {
         setView({ type: 'redirect', code: maybeCode });
         return;
       }
@@ -236,10 +240,11 @@ function App() {
     { id: 'pastebin', label: 'Pastebin', icon: '📝', desc: 'Share code/text' },
   ];
 
+  // Admin removed from sidebar; Organization added
   const navItems = [
     { id: 'home', label: 'Home', icon: <Home className="w-5 h-5" />, view: { type: 'home' as const } },
     { id: 'utilities', label: 'Utilities', icon: <Wrench className="w-5 h-5" />, view: { type: 'utilities' as const } },
-    { id: 'admin', label: 'Admin', icon: <Shield className="w-5 h-5" />, view: { type: 'admin' as const } },
+    { id: 'organization', label: 'Organization', icon: <Building2 className="w-5 h-5" />, view: { type: 'organization' as const } },
   ];
 
   const renderHome = () => (
@@ -303,7 +308,7 @@ function App() {
   }
 
   if (view.type === 'project-dashboard') {
-    return <ProjectDashboard projectId={view.id} onBack={() => navigateTo('/projects')} />;
+    return <ProjectDashboard projectId={view.id} />;
   }
 
   return (
@@ -366,7 +371,7 @@ function App() {
                   const active =
                     (view.type === 'home' && item.id === 'home') ||
                     (view.type === 'utilities' && item.id === 'utilities') ||
-                    (view.type === 'admin' && item.id === 'admin') ||
+                    (view.type === 'organization' && item.id === 'organization') ||
                     (view.type === 'tool' && item.id === 'utilities') ||
                     (view.type === 'secret' && item.id === 'utilities') ||
                     (view.type === 'paste' && item.id === 'utilities') ||
@@ -397,6 +402,7 @@ function App() {
             {view.type === 'home' && renderHome()}
             {view.type === 'utilities' && renderUtilities()}
             {view.type === 'tool' && renderUtilities()}
+            {view.type === 'organization' && <OrganizationPage />}
             {view.type === 'redirect' && <URLRedirect shortCode={view.code} />}
             {view.type === 'secret' && <SecretView secretCode={view.code} />}
             {view.type === 'paste' && <PasteView pasteCode={view.code} />}
