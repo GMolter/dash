@@ -8,6 +8,7 @@ export type Org = {
   icon_color: string;
   code?: string;
   owner_id?: string;
+  created_at?: string;
 };
 
 type AuthContextValue = {
@@ -28,10 +29,6 @@ function safeString(v: unknown): string | null {
 }
 
 async function tryLoadOrgFromDb(userId: string) {
-  // Expected tables (recommended):
-  // - profiles(id uuid primary key, org_id uuid null)
-  // - organizations(id uuid primary key, name text, icon_color text, code text unique)
-
   const profileRes = await supabase
     .from('profiles')
     .select('org_id')
@@ -44,7 +41,7 @@ async function tryLoadOrgFromDb(userId: string) {
 
   const orgRes = await supabase
     .from('organizations')
-    .select('id,name,icon_color,code,owner_id')
+    .select('id,name,icon_color,code,owner_id,created_at')
     .eq('id', orgId)
     .maybeSingle();
 
@@ -123,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setOrg(loaded.org);
         return;
       } catch {
-        // Fall back to user_metadata-based org details (lets the UI work even if tables aren't created yet).
+        // Fall back to user_metadata-based org details.
         const loaded = loadOrgFromUserMetadata(user);
         setOrgId(loaded.orgId);
         setOrg(loaded.org);
@@ -134,7 +131,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Refresh org whenever the logged-in user changes.
   useEffect(() => {
     if (!loading) reloadOrg();
     // eslint-disable-next-line react-hooks/exhaustive-deps
