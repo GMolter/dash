@@ -15,10 +15,12 @@ export function AnimatedBackground() {
     const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
-    // Match the snippet: lock overflow + base background.
-    const prevOverflow = document.body.style.overflow;
+    // Match the snippet: base background.
+    // IMPORTANT: do NOT lock vertical scrolling for the entire app.
+    // We only prevent horizontal scrollbars caused by the fixed canvas.
+    const prevOverflowX = document.body.style.overflowX;
     const prevBg = document.body.style.background;
-    document.body.style.overflow = 'hidden';
+    document.body.style.overflowX = 'hidden';
     document.body.style.background = '#05050a';
 
     let w = 0;
@@ -325,7 +327,7 @@ export function AnimatedBackground() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       window.removeEventListener('resize', onResize);
-      document.body.style.overflow = prevOverflow;
+      document.body.style.overflowX = prevOverflowX;
       document.body.style.background = prevBg;
     };
   }, []);
