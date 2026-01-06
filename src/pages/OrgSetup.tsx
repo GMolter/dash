@@ -108,7 +108,7 @@ export function OrgSetup() {
   };
 
   return (
-    <div className="min-h-screen text-white relative overflow-hidden">
+    <div className="min-h-screen text-white relative overflow-x-hidden">
       <div className="absolute inset-0 bg-slate-950" />
       <div className="absolute inset-0 opacity-60 bg-[radial-gradient(circle_at_25%_20%,rgba(59,130,246,0.35),transparent_45%),radial-gradient(circle_at_75%_30%,rgba(99,102,241,0.35),transparent_45%),radial-gradient(circle_at_60%_80%,rgba(14,165,233,0.25),transparent_45%)]" />
 
