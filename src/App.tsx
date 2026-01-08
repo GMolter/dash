@@ -21,14 +21,14 @@ import { Onboarding } from './pages/Onboarding';
 import { OrgSetup } from './pages/OrgSetup';
 import { OrganizationPage } from './pages/Organization';
 
-// ✅ Standalone Projects app pages (no main header/sidebar shell)
+// ✅ Standalone projects app pages (no main header/sidebar shell)
 import { ProjectsCenterApp } from './pages/ProjectsCenterApp';
 import { ProjectDashboard } from './pages/ProjectDashboard';
 
 type View =
   | { type: 'home' }
   | { type: 'utilities' }
-  | { type: 'admin' } // kept (hidden from sidebar)
+  | { type: 'admin' } // hidden (still accessible via /admin)
   | { type: 'organization' }
   | { type: 'tool'; tool: string }
   | { type: 'redirect'; code: string }
@@ -65,7 +65,7 @@ function App() {
     view.type === 'paste-list' ||
     view.type === 'redirect';
 
-  // Gate the main dashboard behind auth + org membership.
+  // ✅ Gate the main dashboard behind auth + org membership.
   // Public routes (secrets/pastes/redirects) bypass this.
   if (!isPublicRoute) {
     if (authLoading || orgLoading) {
@@ -141,8 +141,6 @@ function App() {
   useEffect(() => {
     const resolve = () => {
       const path = window.location.pathname || '/';
-
-      // Normalize double slashes etc.
       const cleanPath = path.replace(/\/+$/, '') || '/';
 
       // ✅ Projects routes (standalone)
@@ -157,34 +155,27 @@ function App() {
         return;
       }
 
-      // Hidden admin route (no sidebar link)
+      // Hidden admin route
       if (cleanPath === '/admin') {
         setView({ type: 'admin' });
-
-        // QoL: keep the URL bar clean for the admin panel.
         if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
         return;
       }
 
       if (cleanPath === '/utilities') {
         setView({ type: 'utilities' });
-
-        // QoL: keep the URL bar clean for the utilities hub.
         if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
         return;
       }
 
       if (cleanPath === '/organization' || cleanPath === '/org') {
         setView({ type: 'organization' });
-
-        // QoL: keep URL bar clean
         if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
         return;
       }
 
       if (cleanPath === '/p' || cleanPath === '/pastes') {
         setView({ type: 'paste-list' });
-
         if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
         return;
       }
@@ -219,12 +210,9 @@ function App() {
         return;
       }
 
-      // Unknown single segment (e.g. /abc123) -> check short_urls
+      // Unknown single segment -> URL shortener redirect lookup
       const maybeCode = cleanPath.replace(/^\//, '');
-      if (
-        maybeCode &&
-        !['home', 'admin', 'utilities', 'p', 'pastes', 'projects', 'organization', 'org'].includes(maybeCode)
-      ) {
+      if (maybeCode && !['home', 'admin', 'utilities', 'p', 'pastes', 'projects', 'organization', 'org'].includes(maybeCode)) {
         setView({ type: 'redirect', code: maybeCode });
         return;
       }
@@ -294,10 +282,7 @@ function App() {
     if (view.type === 'tool') {
       return (
         <div className="space-y-6">
-          <button
-            onClick={() => setView({ type: 'utilities' })}
-            className="text-slate-300 hover:text-white flex items-center gap-2"
-          >
+          <button onClick={() => setView({ type: 'utilities' })} className="text-slate-300 hover:text-white flex items-center gap-2">
             ← Back to Utilities
           </button>
 
@@ -325,7 +310,6 @@ function App() {
   }
 
   return (
-    // Allow vertical scrolling for the whole app; prevent horizontal scrollbars.
     <div className="min-h-screen text-white relative overflow-x-hidden">
       <AnimatedBackground />
       <div className="relative z-10 min-h-screen flex flex-col">
@@ -338,19 +322,14 @@ function App() {
                 className="p-3 sm:p-4 hover:bg-slate-800/50 bg-slate-900/30 border border-slate-800/60 rounded-2xl transition-colors"
                 aria-label="Toggle menu"
               >
-                {sidebarOpen ? (
-                  <X className="w-6 h-6 sm:w-7 sm:h-7" />
-                ) : (
-                  <Menu className="w-6 h-6 sm:w-7 sm:h-7" />
-                )}
+                {sidebarOpen ? <X className="w-6 h-6 sm:w-7 sm:h-7" /> : <Menu className="w-6 h-6 sm:w-7 sm:h-7" />}
               </button>
 
               <div className="pt-1">
                 <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold tracking-tight text-white">Olio Workstation</h1>
 
                 <p className="mt-2 sm:mt-3 md:mt-4 text-sm sm:text-base md:text-xl text-slate-300">
-                  {getGreeting()} · {formatDate(currentTime)} ·{' '}
-                  <span className="font-mono text-slate-200">{formatTime(currentTime)}</span>
+                  {getGreeting()} · {formatDate(currentTime)} · <span className="font-mono text-slate-200">{formatTime(currentTime)}</span>
                 </p>
               </div>
             </div>
@@ -373,11 +352,7 @@ function App() {
           {/* Sidebar (mobile overlay) */}
           {sidebarOpen && (
             <>
-              <div
-                className="fixed inset-0 bg-black/50 z-20 md:hidden"
-                onClick={() => setSidebarOpen(false)}
-                aria-hidden="true"
-              />
+              <div className="fixed inset-0 bg-black/50 z-20 md:hidden" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
 
               <aside className="fixed md:static inset-y-0 left-0 z-30 md:z-auto w-72 border-r border-slate-800/50 bg-slate-950/70 md:bg-slate-950/40 backdrop-blur">
                 <nav className="p-4 sm:p-5 space-y-3">
@@ -397,13 +372,10 @@ function App() {
                         key={item.id}
                         onClick={() => {
                           setView(item.view);
-                          // On mobile, close the sidebar after selection.
                           if (window.innerWidth < 768) setSidebarOpen(false);
                         }}
                         className={`w-full flex items-center gap-3 px-4 sm:px-5 py-3.5 sm:py-4 rounded-2xl transition-colors ${
-                          active
-                            ? 'bg-blue-500/20 border border-blue-500/30 text-blue-200'
-                            : 'hover:bg-slate-800/40 text-slate-200'
+                          active ? 'bg-blue-500/20 border border-blue-500/30 text-blue-200' : 'hover:bg-slate-800/40 text-slate-200'
                         }`}
                       >
                         {item.icon}
@@ -437,7 +409,6 @@ function App() {
 
 export default App;
 
-// helper used above
 function navigateTo(path: string) {
   window.history.pushState({}, '', path);
   window.dispatchEvent(new PopStateEvent('popstate'));
