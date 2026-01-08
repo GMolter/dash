@@ -36,7 +36,6 @@ async function persistOrgToProfile(
   org: { id: string; name: string; icon_color: string },
   role: 'member' | 'admin' | 'owner'
 ) {
-  // ✅ IMPORTANT: throw if DB write fails (this is what stops the OrgSetup loop)
   const upsertRes = await supabase
     .from('profiles')
     .upsert(
@@ -48,11 +47,8 @@ async function persistOrgToProfile(
       { onConflict: 'id' }
     );
 
-  if (upsertRes.error) {
-    throw upsertRes.error;
-  }
+  if (upsertRes.error) throw upsertRes.error;
 
-  // Keep metadata as a convenience fallback (NOT a replacement for DB)
   const metaRes = await supabase.auth.updateUser({
     data: {
       org_id: org.id,
@@ -61,10 +57,7 @@ async function persistOrgToProfile(
     },
   });
 
-  if (metaRes.error) {
-    // This isn’t critical for gating, but it’s still an error worth surfacing.
-    throw metaRes.error;
-  }
+  if (metaRes.error) throw metaRes.error;
 }
 
 export function OrgSetup() {
@@ -80,13 +73,19 @@ export function OrgSetup() {
   const canJoin = useMemo(() => joinCode.trim().length === 4, [joinCode]);
   const canCreate = useMemo(() => orgName.trim().length >= 2, [orgName]);
 
+  const exitSetup = () => {
+    // Guarantee we return to the main app shell route
+    window.history.replaceState({}, '', '/');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
   const onJoin = async () => {
     if (!user) return;
     setBusy(true);
     setError(null);
+
     try {
       const code = joinCode.trim();
-
       if (code.length !== 4) throw new Error('Enter a 4-digit organization code.');
 
       const { data: org, error: orgErr } = await supabase
@@ -100,6 +99,7 @@ export function OrgSetup() {
 
       await persistOrgToProfile(user.id, org as any, 'member');
       await reloadOrg();
+      exitSetup();
     } catch (e: any) {
       setError(String(e?.message || e));
     } finally {
@@ -111,19 +111,18 @@ export function OrgSetup() {
     if (!user) return;
     setBusy(true);
     setError(null);
+
     try {
       const code = await generateUniqueJoinCode4();
 
-      const payload = {
-        name: orgName.trim(),
-        icon_color: orgColor,
-        owner_id: user.id,
-        code,
-      };
-
       const { data: org, error: orgErr } = await supabase
         .from('organizations')
-        .insert(payload)
+        .insert({
+          name: orgName.trim(),
+          icon_color: orgColor,
+          owner_id: user.id,
+          code,
+        })
         .select('id,name,icon_color')
         .single();
 
@@ -132,6 +131,7 @@ export function OrgSetup() {
 
       await persistOrgToProfile(user.id, org as any, 'owner');
       await reloadOrg();
+      exitSetup();
     } catch (e: any) {
       setError(String(e?.message || e));
     } finally {
