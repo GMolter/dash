@@ -5,16 +5,16 @@ import { useAuth } from '../auth/AuthContext';
 type Mode = 'join' | 'create';
 
 const ORG_COLORS = [
-  '#3b82f6', // blue
-  '#6366f1', // indigo
-  '#8b5cf6', // violet
-  '#ec4899', // pink
-  '#f43f5e', // rose
-  '#ef4444', // red
-  '#f59e0b', // amber
-  '#22c55e', // green
-  '#14b8a6', // teal
-  '#0ea5e9', // sky
+  '#3b82f6',
+  '#6366f1',
+  '#8b5cf6',
+  '#ec4899',
+  '#f43f5e',
+  '#ef4444',
+  '#f59e0b',
+  '#22c55e',
+  '#14b8a6',
+  '#0ea5e9',
 ];
 
 function random4DigitCode() {
@@ -57,11 +57,9 @@ export function OrgSetup() {
     try {
       const { data: org } = await supabase
         .from('organizations')
-        .select('id,name,icon_color')
+        .select('id')
         .eq('code', joinCode)
         .single();
-
-      if (!org) throw new Error('Invalid organization code');
 
       await supabase.from('profiles').upsert({
         id: user.id,
@@ -71,7 +69,7 @@ export function OrgSetup() {
 
       await reloadOrg();
     } catch (e: any) {
-      setError(e.message || 'Failed to join organization');
+      setError(e.message || 'Invalid organization code');
     } finally {
       setBusy(false);
     }
@@ -95,8 +93,6 @@ export function OrgSetup() {
         })
         .select('id')
         .single();
-
-      if (!org) throw new Error('Failed to create organization');
 
       await supabase.from('profiles').upsert({
         id: user.id,
