@@ -36,7 +36,8 @@ async function persistOrgToProfile(
   org: { id: string; name: string; icon_color: string },
   role: 'member' | 'admin' | 'owner'
 ) {
-  await supabase
+  // ✅ IMPORTANT: throw if DB write fails (this is what stops the OrgSetup loop)
+  const upsertRes = await supabase
     .from('profiles')
     .upsert(
       {
@@ -47,14 +48,23 @@ async function persistOrgToProfile(
       { onConflict: 'id' }
     );
 
-  // Always also set user_metadata as a safety net (lets UI recover even if DB select fails).
-  await supabase.auth.updateUser({
+  if (upsertRes.error) {
+    throw upsertRes.error;
+  }
+
+  // Keep metadata as a convenience fallback (NOT a replacement for DB)
+  const metaRes = await supabase.auth.updateUser({
     data: {
       org_id: org.id,
       org_name: org.name,
       org_icon_color: org.icon_color,
     },
   });
+
+  if (metaRes.error) {
+    // This isn’t critical for gating, but it’s still an error worth surfacing.
+    throw metaRes.error;
+  }
 }
 
 export function OrgSetup() {
@@ -76,6 +86,8 @@ export function OrgSetup() {
     setError(null);
     try {
       const code = joinCode.trim();
+
+      if (code.length !== 4) throw new Error('Enter a 4-digit organization code.');
 
       const { data: org, error: orgErr } = await supabase
         .from('organizations')
@@ -121,12 +133,7 @@ export function OrgSetup() {
       await persistOrgToProfile(user.id, org as any, 'owner');
       await reloadOrg();
     } catch (e: any) {
-      const msg = String(e?.message || e);
-      setError(
-        msg.includes('relation') || msg.includes('organizations') || msg.includes('profiles')
-          ? `${msg}\n\nOrg setup needs Supabase tables (profiles, organizations) + RLS policies.`
-          : msg
-      );
+      setError(String(e?.message || e));
     } finally {
       setBusy(false);
     }
