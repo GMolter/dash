@@ -5,25 +5,25 @@ import { useAuth } from '../auth/AuthContext';
 type Mode = 'join' | 'create';
 
 const ORG_COLORS = [
-  '#3b82f6',
-  '#6366f1',
-  '#8b5cf6',
-  '#ec4899',
-  '#f43f5e',
-  '#ef4444',
-  '#f59e0b',
-  '#22c55e',
-  '#14b8a6',
-  '#0ea5e9',
+  '#3b82f6', // blue
+  '#6366f1', // indigo
+  '#8b5cf6', // violet
+  '#ec4899', // pink
+  '#ef4444', // red
+  '#f97316', // orange
+  '#facc15', // yellow
+  '#22c55e', // green
+  '#14b8a6', // teal
+  '#64748b', // slate
 ];
 
-function random4DigitCode() {
+function makeJoinCode4() {
   return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
-async function generateUniqueCode() {
-  for (let i = 0; i < 20; i++) {
-    const code = random4DigitCode();
+async function generateUniqueJoinCode4(maxAttempts = 20) {
+  for (let i = 0; i < maxAttempts; i++) {
+    const code = makeJoinCode4();
     const { data } = await supabase
       .from('organizations')
       .select('id')
@@ -32,7 +32,33 @@ async function generateUniqueCode() {
 
     if (!data) return code;
   }
-  throw new Error('Failed to generate unique org code');
+
+  throw new Error('Failed to generate unique organization code.');
+}
+
+async function persistOrgToProfile(
+  userId: string,
+  org: { id: string; name: string; icon_color: string },
+  role: 'member' | 'admin' | 'owner'
+) {
+  await supabase
+    .from('profiles')
+    .upsert(
+      {
+        id: userId,
+        org_id: org.id,
+        role,
+      },
+      { onConflict: 'id' }
+    );
+
+  await supabase.auth.updateUser({
+    data: {
+      org_id: org.id,
+      org_name: org.name,
+      org_icon_color: org.icon_color,
+    },
+  });
 }
 
 export function OrgSetup() {
@@ -49,7 +75,7 @@ export function OrgSetup() {
   const canJoin = useMemo(() => joinCode.length === 4, [joinCode]);
   const canCreate = useMemo(() => orgName.trim().length >= 2, [orgName]);
 
-  const joinOrg = async () => {
+  const onJoin = async () => {
     if (!user) return;
     setBusy(true);
     setError(null);
@@ -57,31 +83,28 @@ export function OrgSetup() {
     try {
       const { data: org } = await supabase
         .from('organizations')
-        .select('id')
+        .select('id,name,icon_color')
         .eq('code', joinCode)
-        .single();
+        .maybeSingle();
 
-      await supabase.from('profiles').upsert({
-        id: user.id,
-        org_id: org.id,
-        role: 'member',
-      });
+      if (!org) throw new Error('Invalid organization code.');
 
+      await persistOrgToProfile(user.id, org, 'member');
       await reloadOrg();
     } catch (e: any) {
-      setError(e.message || 'Invalid organization code');
+      setError(String(e.message || e));
     } finally {
       setBusy(false);
     }
   };
 
-  const createOrg = async () => {
+  const onCreate = async () => {
     if (!user) return;
     setBusy(true);
     setError(null);
 
     try {
-      const code = await generateUniqueCode();
+      const code = await generateUniqueJoinCode4();
 
       const { data: org } = await supabase
         .from('organizations')
@@ -91,50 +114,47 @@ export function OrgSetup() {
           owner_id: user.id,
           code,
         })
-        .select('id')
+        .select('id,name,icon_color')
         .single();
 
-      await supabase.from('profiles').upsert({
-        id: user.id,
-        org_id: org.id,
-        role: 'owner',
-      });
+      if (!org) throw new Error('Failed to create organization.');
 
+      await persistOrgToProfile(user.id, org, 'owner');
       await reloadOrg();
     } catch (e: any) {
-      setError(e.message || 'Failed to create organization');
+      setError(String(e.message || e));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white p-6">
-      <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-slate-900/50 backdrop-blur p-7 space-y-6">
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-6 text-white">
+      <div className="w-full max-w-lg rounded-3xl border border-slate-800/60 bg-slate-900/60 backdrop-blur p-7 space-y-6">
         <div>
           <h1 className="text-3xl font-semibold">Organization</h1>
           <p className="text-slate-300 mt-1">
-            Join an existing organization or create a new one.
+            Join an existing org or create a new one.
           </p>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={() => setMode('join')}
-            className={`rounded-xl py-3 ${
+            className={`px-4 py-3 rounded-2xl border ${
               mode === 'join'
-                ? 'bg-blue-600'
-                : 'bg-slate-800 hover:bg-slate-700'
+                ? 'bg-blue-500/20 border-blue-500/30'
+                : 'border-slate-800/60'
             }`}
           >
             Join
           </button>
           <button
             onClick={() => setMode('create')}
-            className={`rounded-xl py-3 ${
+            className={`px-4 py-3 rounded-2xl border ${
               mode === 'create'
-                ? 'bg-blue-600'
-                : 'bg-slate-800 hover:bg-slate-700'
+                ? 'bg-blue-500/20 border-blue-500/30'
+                : 'border-slate-800/60'
             }`}
           >
             Create
@@ -149,12 +169,12 @@ export function OrgSetup() {
                 setJoinCode(e.target.value.replace(/\D/g, '').slice(0, 4))
               }
               placeholder="4-digit code"
-              className="w-full text-center tracking-widest text-xl rounded-xl bg-slate-800 border border-slate-700 py-3"
+              className="w-full text-center text-xl tracking-widest px-4 py-3 rounded-2xl bg-slate-800/60 border border-slate-700"
             />
             <button
               disabled={!canJoin || busy}
-              onClick={joinOrg}
-              className="w-full rounded-xl bg-blue-600 py-3 disabled:opacity-50"
+              onClick={onJoin}
+              className="w-full px-4 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50"
             >
               Join Organization
             </button>
@@ -167,19 +187,22 @@ export function OrgSetup() {
               value={orgName}
               onChange={(e) => setOrgName(e.target.value)}
               placeholder="Organization name"
-              className="w-full rounded-xl bg-slate-800 border border-slate-700 py-3 px-4"
+              className="w-full px-4 py-3 rounded-2xl bg-slate-800/60 border border-slate-700"
             />
 
             <div>
-              <p className="text-sm text-slate-300 mb-2">Icon Color</p>
+              <p className="text-sm text-slate-300 mb-2">
+                Organization Color
+              </p>
               <div className="grid grid-cols-5 gap-3">
                 {ORG_COLORS.map((color) => (
                   <button
                     key={color}
+                    type="button"
                     onClick={() => setOrgColor(color)}
                     className={`h-10 w-10 rounded-xl border ${
                       orgColor === color
-                        ? 'ring-2 ring-blue-400 border-white'
+                        ? 'ring-2 ring-white border-white'
                         : 'border-slate-700'
                     }`}
                     style={{ backgroundColor: color }}
@@ -190,8 +213,8 @@ export function OrgSetup() {
 
             <button
               disabled={!canCreate || busy}
-              onClick={createOrg}
-              className="w-full rounded-xl bg-blue-600 py-3 disabled:opacity-50"
+              onClick={onCreate}
+              className="w-full px-4 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50"
             >
               Create Organization
             </button>
@@ -199,7 +222,7 @@ export function OrgSetup() {
         )}
 
         {error && (
-          <div className="rounded-xl bg-red-500/20 border border-red-500/40 px-4 py-3 text-sm">
+          <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-200">
             {error}
           </div>
         )}
