@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AnimatedBackground } from './components/AnimatedBackground';
 import { Quicklinks } from './components/Quicklinks';
 import { ProjectsCenter } from './components/ProjectsCenter';
@@ -14,26 +14,27 @@ import { PasteList } from './pages/PasteList';
 import { NotFound } from './pages/NotFound';
 import Admin from './pages/Admin';
 import { UtilitiesHub } from './components/UtilitiesHub';
-import { Home, Wrench, Shield, Menu, X, AlertTriangle } from 'lucide-react';
+import { Home, Wrench, Users, Menu, X, AlertTriangle } from 'lucide-react';
 
 import { useAuth } from './auth/AuthContext';
 import { Onboarding } from './pages/Onboarding';
 import { OrgSetup } from './pages/OrgSetup';
+import { OrganizationPage } from './pages/Organization';
 
-// ✅ NEW imports (adjust path if needed)
+// ✅ Standalone Projects app pages (no main header/sidebar shell)
 import { ProjectsCenterApp } from './pages/ProjectsCenterApp';
 import { ProjectDashboard } from './pages/ProjectDashboard';
 
 type View =
   | { type: 'home' }
   | { type: 'utilities' }
-  | { type: 'admin' }
+  | { type: 'admin' } // kept (hidden from sidebar)
+  | { type: 'organization' }
   | { type: 'tool'; tool: string }
   | { type: 'redirect'; code: string }
   | { type: 'secret'; code: string }
   | { type: 'paste'; code: string }
   | { type: 'paste-list' }
-  // ✅ NEW views
   | { type: 'projects-center' }
   | { type: 'project-dashboard'; id: string };
 
@@ -156,6 +157,7 @@ function App() {
         return;
       }
 
+      // Hidden admin route (no sidebar link)
       if (cleanPath === '/admin') {
         setView({ type: 'admin' });
 
@@ -168,6 +170,14 @@ function App() {
         setView({ type: 'utilities' });
 
         // QoL: keep the URL bar clean for the utilities hub.
+        if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
+        return;
+      }
+
+      if (cleanPath === '/organization' || cleanPath === '/org') {
+        setView({ type: 'organization' });
+
+        // QoL: keep URL bar clean
         if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
         return;
       }
@@ -211,7 +221,10 @@ function App() {
 
       // Unknown single segment (e.g. /abc123) -> check short_urls
       const maybeCode = cleanPath.replace(/^\//, '');
-      if (maybeCode && !['home', 'admin', 'utilities', 'p', 'pastes', 'projects'].includes(maybeCode)) {
+      if (
+        maybeCode &&
+        !['home', 'admin', 'utilities', 'p', 'pastes', 'projects', 'organization', 'org'].includes(maybeCode)
+      ) {
         setView({ type: 'redirect', code: maybeCode });
         return;
       }
@@ -261,10 +274,11 @@ function App() {
     { id: 'pastebin', label: 'Pastebin', icon: '📝', desc: 'Share code/text' },
   ];
 
+  // ✅ Admin removed from sidebar; replaced with Organization
   const navItems = [
     { id: 'home', label: 'Home', icon: <Home className="w-5 h-5" />, view: { type: 'home' as const } },
     { id: 'utilities', label: 'Utilities', icon: <Wrench className="w-5 h-5" />, view: { type: 'utilities' as const } },
-    { id: 'admin', label: 'Admin', icon: <Shield className="w-5 h-5" />, view: { type: 'admin' as const } },
+    { id: 'organization', label: 'Organization', icon: <Users className="w-5 h-5" />, view: { type: 'organization' as const } },
   ];
 
   const renderHome = () => (
@@ -280,7 +294,10 @@ function App() {
     if (view.type === 'tool') {
       return (
         <div className="space-y-6">
-          <button onClick={() => setView({ type: 'utilities' })} className="text-slate-300 hover:text-white flex items-center gap-2">
+          <button
+            onClick={() => setView({ type: 'utilities' })}
+            className="text-slate-300 hover:text-white flex items-center gap-2"
+          >
             ← Back to Utilities
           </button>
 
@@ -321,14 +338,19 @@ function App() {
                 className="p-3 sm:p-4 hover:bg-slate-800/50 bg-slate-900/30 border border-slate-800/60 rounded-2xl transition-colors"
                 aria-label="Toggle menu"
               >
-                {sidebarOpen ? <X className="w-6 h-6 sm:w-7 sm:h-7" /> : <Menu className="w-6 h-6 sm:w-7 sm:h-7" />}
+                {sidebarOpen ? (
+                  <X className="w-6 h-6 sm:w-7 sm:h-7" />
+                ) : (
+                  <Menu className="w-6 h-6 sm:w-7 sm:h-7" />
+                )}
               </button>
 
               <div className="pt-1">
                 <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold tracking-tight text-white">Olio Workstation</h1>
 
                 <p className="mt-2 sm:mt-3 md:mt-4 text-sm sm:text-base md:text-xl text-slate-300">
-                  {getGreeting()} · {formatDate(currentTime)} · <span className="font-mono text-slate-200">{formatTime(currentTime)}</span>
+                  {getGreeting()} · {formatDate(currentTime)} ·{' '}
+                  <span className="font-mono text-slate-200">{formatTime(currentTime)}</span>
                 </p>
               </div>
             </div>
@@ -351,7 +373,11 @@ function App() {
           {/* Sidebar (mobile overlay) */}
           {sidebarOpen && (
             <>
-              <div className="fixed inset-0 bg-black/50 z-20 md:hidden" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
+              <div
+                className="fixed inset-0 bg-black/50 z-20 md:hidden"
+                onClick={() => setSidebarOpen(false)}
+                aria-hidden="true"
+              />
 
               <aside className="fixed md:static inset-y-0 left-0 z-30 md:z-auto w-72 border-r border-slate-800/50 bg-slate-950/70 md:bg-slate-950/40 backdrop-blur">
                 <nav className="p-4 sm:p-5 space-y-3">
@@ -359,7 +385,7 @@ function App() {
                     const active =
                       (view.type === 'home' && item.id === 'home') ||
                       (view.type === 'utilities' && item.id === 'utilities') ||
-                      (view.type === 'admin' && item.id === 'admin') ||
+                      (view.type === 'organization' && item.id === 'organization') ||
                       (view.type === 'tool' && item.id === 'utilities') ||
                       (view.type === 'secret' && item.id === 'utilities') ||
                       (view.type === 'paste' && item.id === 'utilities') ||
@@ -375,8 +401,44 @@ function App() {
                           if (window.innerWidth < 768) setSidebarOpen(false);
                         }}
                         className={`w-full flex items-center gap-3 px-4 sm:px-5 py-3.5 sm:py-4 rounded-2xl transition-colors ${
-                          active ? 'bg-blue-500/20 border border-blue-500/30 text-blue-200' : 'hover:bg-slate-800/40 text-slate-200'
+                          active
+                            ? 'bg-blue-500/20 border border-blue-500/30 text-blue-200'
+                            : 'hover:bg-slate-800/40 text-slate-200'
                         }`}
                       >
                         {item.icon}
-                        <span class
+                        <span className="text-sm sm:text-base font-medium">{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </nav>
+              </aside>
+            </>
+          )}
+
+          {/* Main Content */}
+          <main className="flex-1 p-4 sm:p-6 md:p-10">
+            {view.type === 'home' && renderHome()}
+            {view.type === 'utilities' && renderUtilities()}
+            {view.type === 'tool' && renderUtilities()}
+            {view.type === 'organization' && <OrganizationPage />}
+            {view.type === 'redirect' && <URLRedirect shortCode={view.code} />}
+            {view.type === 'secret' && <SecretView secretCode={view.code} />}
+            {view.type === 'paste' && <PasteView pasteCode={view.code} />}
+            {view.type === 'paste-list' && <PasteList />}
+            {view.type === 'admin' && <Admin />}
+            {view.type === 'tool' && view.tool === 'notfound' && <NotFound />}
+          </main>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default App;
+
+// helper used above
+function navigateTo(path: string) {
+  window.history.pushState({}, '', path);
+  window.dispatchEvent(new PopStateEvent('popstate'));
+}
