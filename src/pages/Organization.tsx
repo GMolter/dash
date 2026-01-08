@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../auth/AuthContext';
-import { Shield, Users, Settings, Trash2 } from 'lucide-react';
+import { Users, Settings, Trash2 } from 'lucide-react';
 
 type Role = 'member' | 'admin' | 'owner';
 
@@ -12,14 +12,16 @@ type Member = {
 };
 
 export function OrganizationPage() {
-  const { org, user } = useAuth();
+  const { org, role } = useAuth();
 
   const [members, setMembers] = useState<Member[]>([]);
   const [tab, setTab] = useState<'overview' | 'manage'>('overview');
   const [loading, setLoading] = useState(true);
-
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
+
+  const canManage = role === 'owner' || role === 'admin';
+  const isOwner = role === 'owner';
 
   useEffect(() => {
     if (!org) return;
@@ -29,44 +31,26 @@ export function OrganizationPage() {
       .from('profiles')
       .select('id, role, display_name')
       .eq('org_id', org.id)
-      .then(({ data, error }) => {
-        if (!error) setMembers(data || []);
+      .then(({ data }) => {
+        setMembers(data || []);
         setLoading(false);
       });
   }, [org]);
 
-  const myRole = useMemo(() => {
-    return members.find((m) => m.id === user?.id)?.role ?? 'member';
-  }, [members, user]);
-
-  const canManage = myRole === 'owner' || myRole === 'admin';
-  const isOwner = myRole === 'owner';
-
-  const updateRole = async (id: string, role: Role) => {
-    await supabase.from('profiles').update({ role }).eq('id', id);
+  const updateRole = async (id: string, newRole: Role) => {
+    await supabase.from('profiles').update({ role: newRole }).eq('id', id);
     setMembers((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, role } : m))
+      prev.map((m) => (m.id === id ? { ...m, role: newRole } : m))
     );
   };
 
   const deleteOrganization = async () => {
-    if (!org || !isOwner) return;
-    if (confirmText !== org.name) return;
+    if (!org || !isOwner || confirmText !== org.name) return;
 
     setDeleting(true);
-
-    try {
-      // Remove org reference from members
-      await supabase.from('profiles').update({ org_id: null, role: 'member' }).eq('org_id', org.id);
-
-      // Delete org
-      await supabase.from('organizations').delete().eq('id', org.id);
-
-      // Force reload
-      window.location.reload();
-    } catch {
-      setDeleting(false);
-    }
+    await supabase.from('profiles').update({ org_id: null, role: 'member' }).eq('org_id', org.id);
+    await supabase.from('organizations').delete().eq('id', org.id);
+    window.location.reload();
   };
 
   if (!org) return null;
@@ -80,21 +64,25 @@ export function OrganizationPage() {
         </p>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-2 border-b border-slate-800/60">
-        <TabButton active={tab === 'overview'} onClick={() => setTab('overview')} icon={<Users className="w-4 h-4" />} label="Overview" />
+        <button onClick={() => setTab('overview')} className={tab === 'overview' ? 'tab-active' : 'tab'}>
+          Overview
+        </button>
         {canManage && (
-          <TabButton active={tab === 'manage'} onClick={() => setTab('manage')} icon={<Settings className="w-4 h-4" />} label="Manage" />
+          <button onClick={() => setTab('manage')} className={tab === 'manage' ? 'tab-active' : 'tab'}>
+            Manage
+          </button>
         )}
       </div>
 
-      {/* OVERVIEW */}
       {tab === 'overview' && (
         <div className="space-y-8">
           <div className="rounded-3xl border border-blue-500/30 bg-blue-500/10 backdrop-blur p-7">
             <div className="text-sm uppercase tracking-wide text-blue-200">Organization Code</div>
             <div className="mt-3 flex items-center gap-4">
-              <div className="font-mono text-4xl tracking-widest text-white">{org.code}</div>
+              <div className="font-mono text-4xl tracking-widest text-white">
+                {org.code}
+              </div>
               <button
                 onClick={() => navigator.clipboard.writeText(org.code)}
                 className="px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 transition-colors font-medium"
@@ -132,22 +120,14 @@ export function OrganizationPage() {
         </div>
       )}
 
-      {/* MANAGE */}
       {tab === 'manage' && canManage && (
-        <div className="space-y-10">
+        <div className="space-y-8">
           <div className="rounded-3xl border border-slate-800/60 bg-slate-950/40 backdrop-blur p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Shield className="w-5 h-5 text-slate-300" />
-              <h3 className="text-lg font-medium text-white">Member Roles</h3>
-            </div>
-
+            <h3 className="text-lg font-medium text-white mb-4">Member Roles</h3>
             <div className="space-y-3">
               {members.map((m) => (
-                <div key={m.id} className="flex items-center justify-between gap-4 rounded-2xl bg-slate-900/40 border border-slate-800/60 px-4 py-3">
-                  <div className="text-slate-100">
-                    {m.display_name ?? 'Unnamed User'}
-                  </div>
-
+                <div key={m.id} className="flex justify-between items-center rounded-2xl bg-slate-900/40 border border-slate-800/60 px-4 py-3">
+                  <span>{m.display_name ?? 'Unnamed User'}</span>
                   {m.role === 'owner' ? (
                     <span className="text-purple-300 text-sm">Owner</span>
                   ) : (
@@ -165,18 +145,12 @@ export function OrganizationPage() {
             </div>
           </div>
 
-          {/* OWNER DELETE */}
           {isOwner && (
             <div className="rounded-3xl border border-red-500/30 bg-red-500/10 backdrop-blur p-6 space-y-4">
               <div className="flex items-center gap-2 text-red-300">
                 <Trash2 className="w-5 h-5" />
                 <h3 className="text-lg font-semibold">Delete Organization</h3>
               </div>
-
-              <p className="text-sm text-red-200">
-                This permanently deletes the organization and removes all members.
-                This action cannot be undone.
-              </p>
 
               <input
                 value={confirmText}
@@ -188,9 +162,8 @@ export function OrganizationPage() {
               <button
                 disabled={confirmText !== org.name || deleting}
                 onClick={deleteOrganization}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-red-600 hover:bg-red-500 disabled:opacity-50 transition-colors font-medium"
+                className="w-full px-4 py-3 rounded-2xl bg-red-600 hover:bg-red-500 disabled:opacity-50 transition-colors font-medium"
               >
-                <Trash2 className="w-4 h-4" />
                 {deleting ? 'Deleting…' : 'Delete Organization'}
               </button>
             </div>
@@ -198,23 +171,5 @@ export function OrganizationPage() {
         </div>
       )}
     </div>
-  );
-}
-
-/* ---------- helpers ---------- */
-
-function TabButton({ active, onClick, icon, label }: any) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
-        active
-          ? 'border-blue-500 text-blue-200'
-          : 'border-transparent text-slate-400 hover:text-slate-200'
-      }`}
-    >
-      {icon}
-      <span className="text-sm font-medium">{label}</span>
-    </button>
   );
 }
