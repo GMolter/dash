@@ -1,106 +1,172 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
+
+type Role = 'member' | 'admin' | 'owner';
 
 type Org = {
   id: string;
   name: string;
   icon_color: string;
   code: string;
+  owner_id: string;
 };
 
 type AuthContextType = {
-  user: any;
-  org: Org | null;
-  role: 'member' | 'admin' | 'owner' | null;
   loading: boolean;
+  user: any | null;
+
   orgLoading: boolean;
+  orgId: string | null;
+  org: Org | null;
+  role: Role | null;
+
   reloadOrg: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | null>(null);
+
+async function ensureProfileRow(userId: string) {
+  // Some accounts may not have a profiles row yet; create it if missing.
+  const { data: existing, error: readErr } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', userId)
+    .maybeSingle();
+
+  // If RLS blocks select, readErr will exist; let caller handle that.
+  if (readErr) return;
+
+  if (!existing) {
+    await supabase.from('profiles').insert({
+      id: userId,
+      org_id: null,
+      role: 'member',
+    });
+  }
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<any>(null);
-  const [org, setOrg] = useState<Org | null>(null);
-  const [role, setRole] = useState<'member' | 'admin' | 'owner' | null>(null);
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<any | null>(null);
+
   const [orgLoading, setOrgLoading] = useState(true);
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [org, setOrg] = useState<Org | null>(null);
+  const [role, setRole] = useState<Role | null>(null);
 
-  useEffect(() => {
-    const init = async () => {
-      const { data } = await supabase.auth.getUser();
-      setUser(data.user);
-      setLoading(false);
-      if (data.user) await loadOrg(data.user.id);
-      else setOrgLoading(false);
-    };
-
-    init();
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) loadOrg(session.user.id);
-      else {
-        setOrg(null);
-        setRole(null);
-        setOrgLoading(false);
-      }
-    });
-
-    return () => {
-      listener.subscription.unsubscribe();
-    };
-  }, []);
-
-  const loadOrg = async (userId: string) => {
+  const loadOrgState = async (uid: string) => {
     setOrgLoading(true);
 
-    // Always read profile first (role + org_id)
-    const { data: profile } = await supabase
+    // Ensure profile exists (best effort)
+    await ensureProfileRow(uid);
+
+    // Read profile -> org_id + role
+    const { data: profile, error: profErr } = await supabase
       .from('profiles')
       .select('org_id, role')
-      .eq('id', userId)
+      .eq('id', uid)
       .single();
 
-    if (!profile?.org_id) {
+    if (profErr || !profile) {
+      // If this fails, we can't know org membership -> treat as no org, but stop spinner.
+      setOrgId(null);
       setOrg(null);
       setRole(null);
       setOrgLoading(false);
       return;
     }
 
-    setRole(profile.role);
+    const nextOrgId = profile.org_id ? String(profile.org_id) : null;
+    setOrgId(nextOrgId);
+    setRole((profile.role as Role) ?? 'member');
 
-    const { data: orgData } = await supabase
+    if (!nextOrgId) {
+      setOrg(null);
+      setOrgLoading(false);
+      return;
+    }
+
+    // Read org row (needs org SELECT policy)
+    const { data: orgRow, error: orgErr } = await supabase
       .from('organizations')
-      .select('id, name, icon_color, code')
-      .eq('id', profile.org_id)
+      .select('id,name,icon_color,code,owner_id')
+      .eq('id', nextOrgId)
       .single();
 
-    setOrg(orgData ?? null);
+    if (orgErr || !orgRow) {
+      setOrg(null);
+      setOrgLoading(false);
+      return;
+    }
+
+    setOrg(orgRow as Org);
     setOrgLoading(false);
   };
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        org,
-        role,
-        loading,
-        orgLoading,
-        reloadOrg: async () => {
-          if (user) await loadOrg(user.id);
-        },
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  useEffect(() => {
+    let mounted = true;
+
+    const init = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!mounted) return;
+
+      const sessionUser = data.session?.user ?? null;
+      setUser(sessionUser);
+      setLoading(false);
+
+      if (sessionUser?.id) {
+        await loadOrgState(sessionUser.id);
+      } else {
+        setOrgLoading(false);
+        setOrgId(null);
+        setOrg(null);
+        setRole(null);
+      }
+    };
+
+    init();
+
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const sessionUser = session?.user ?? null;
+      setUser(sessionUser);
+
+      if (sessionUser?.id) {
+        await loadOrgState(sessionUser.id);
+      } else {
+        setOrgLoading(false);
+        setOrgId(null);
+        setOrg(null);
+        setRole(null);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  const value = useMemo<AuthContextType>(
+    () => ({
+      loading,
+      user,
+      orgLoading,
+      orgId,
+      org,
+      role,
+      reloadOrg: async () => {
+        if (!user?.id) return;
+        await loadOrgState(user.id);
+      },
+    }),
+    [loading, user, orgLoading, orgId, org, role]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) throw new Error('useAuth must be used within <AuthProvider>');
   return ctx;
 }
