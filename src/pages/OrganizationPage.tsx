@@ -19,6 +19,10 @@ export function OrganizationPage() {
   const [regenerating, setRegenerating] = useState(false);
   const [newCode, setNewCode] = useState('');
 
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false);
+  const [memberToRemove, setMemberToRemove] = useState<{ id: string; name: string } | null>(null);
+  const [removing, setRemoving] = useState(false);
+
   const copyCode = () => {
     if (organization) {
       navigator.clipboard.writeText(organization.code);
@@ -47,10 +51,22 @@ export function OrganizationPage() {
     await updateMemberRole(memberId, newRole);
   };
 
-  const handleRemove = async (memberId: string) => {
-    if (confirm('Are you sure you want to remove this member?')) {
-      await removeMember(memberId);
+  const handleRemove = async () => {
+    if (!memberToRemove) return;
+
+    setRemoving(true);
+    const result = await removeMember(memberToRemove.id);
+    setRemoving(false);
+
+    if (result.success) {
+      setShowRemoveDialog(false);
+      setMemberToRemove(null);
     }
+  };
+
+  const openRemoveDialog = (memberId: string, memberName: string) => {
+    setMemberToRemove({ id: memberId, name: memberName });
+    setShowRemoveDialog(true);
   };
 
   const handleRegenerateCode = async () => {
@@ -267,7 +283,7 @@ export function OrganizationPage() {
                               {member.role === 'admin' ? 'Demote' : 'Promote'}
                             </button>
                             <button
-                              onClick={() => handleRemove(member.id)}
+                              onClick={() => openRemoveDialog(member.id, member.display_name || member.email || 'this member')}
                               className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-white text-sm font-medium transition-colors"
                             >
                               Remove
@@ -332,6 +348,45 @@ export function OrganizationPage() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {showRemoveDialog && memberToRemove && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-6">
+          <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-md w-full p-6">
+            <h3 className="text-xl font-semibold text-white mb-4">Remove Member</h3>
+
+            <div className="space-y-4 mb-6">
+              <div className="p-4 bg-red-900/20 border border-red-700 rounded-lg">
+                <div className="text-sm text-red-400">
+                  Are you sure you want to remove <strong>{memberToRemove.name}</strong> from the organization?
+                </div>
+              </div>
+              <div className="text-sm text-slate-300">
+                This will revoke their access to all organization resources. They can rejoin later using the organization code.
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowRemoveDialog(false);
+                  setMemberToRemove(null);
+                }}
+                disabled={removing}
+                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 rounded-lg text-white font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRemove}
+                disabled={removing}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-800 disabled:cursor-not-allowed rounded-lg text-white font-medium transition-colors"
+              >
+                {removing ? 'Removing...' : 'Remove Member'}
+              </button>
+            </div>
           </div>
         </div>
       )}

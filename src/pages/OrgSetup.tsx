@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useAuth } from '../hooks/useAuth';
 import { useOrg } from '../hooks/useOrg';
-import { Building2, Users, ArrowLeft } from 'lucide-react';
+import { Building2, Users, ArrowLeft, LogOut } from 'lucide-react';
 
 type Step = 'choose' | 'join' | 'create';
 
 export function OrgSetup() {
+  const { signOut } = useAuth();
   const { joinOrg, createOrg } = useOrg();
   const [step, setStep] = useState<Step>('choose');
   const [loading, setLoading] = useState(false);
@@ -56,6 +58,15 @@ export function OrgSetup() {
   if (step === 'choose') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
+        <div className="absolute top-6 right-6">
+          <button
+            onClick={() => signOut()}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700 rounded-lg text-slate-300 hover:text-white transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign Out
+          </button>
+        </div>
         <div className="w-full max-w-2xl">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-white mb-2">Welcome!</h1>
@@ -93,6 +104,15 @@ export function OrgSetup() {
   if (step === 'join') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
+        <div className="absolute top-6 right-6">
+          <button
+            onClick={() => signOut()}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700 rounded-lg text-slate-300 hover:text-white transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign Out
+          </button>
+        </div>
         <div className="w-full max-w-md">
           <button
             onClick={() => {
@@ -149,6 +169,15 @@ export function OrgSetup() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
+      <div className="absolute top-6 right-6">
+        <button
+          onClick={() => signOut()}
+          className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700 rounded-lg text-slate-300 hover:text-white transition-colors"
+        >
+          <LogOut className="w-4 h-4" />
+          Sign Out
+        </button>
+      </div>
       <div className="w-full max-w-md">
         <button
           onClick={() => {

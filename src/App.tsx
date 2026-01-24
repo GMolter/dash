@@ -359,7 +359,7 @@ function App() {
           </div>
         )}
 
-        <div className="relative z-10 flex flex-1">
+        <div className="relative z-10 flex flex-1 overflow-hidden">
           {sidebarOpen && (
             <aside className="w-72 border-r border-slate-800/50 bg-slate-950/40 backdrop-blur">
               <nav className="p-5 space-y-3">
