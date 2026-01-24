@@ -58,41 +58,6 @@ function App() {
   // Banner comes from the same API Admin uses
   const [banner, setBanner] = useState<BannerState>({ enabled: false, text: '' });
 
-  // Public routes (no auth/org required). These are safe to view without signing in.
-  const isPublicRoute =
-    view.type === 'secret' ||
-    view.type === 'paste' ||
-    view.type === 'paste-list' ||
-    view.type === 'redirect';
-
-  // ✅ Gate the main dashboard behind auth + org membership.
-  // Public routes (secrets/pastes/redirects) bypass this.
-  if (!isPublicRoute) {
-    // ⏳ Still loading auth or org state
-    if (authLoading || orgLoading) {
-      return (
-        <div className="h-screen w-screen flex items-center justify-center">
-          <div className="rounded-3xl bg-zinc-900 px-6 py-5 text-center max-w-md w-full text-white">
-            <h2 className="text-lg font-semibold text-white">Loading...</h2>
-            <p className="text-sm text-white/70">Preparing your workspace.</p>
-
-            {(authError || orgError) && (
-              <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-amber-100 text-sm text-left">
-                {authError ? `Auth error: ${authError}` : `Org error: ${orgError}`}
-              </div>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    // 🚪 Not signed in
-    if (!user) return <Onboarding />;
-
-    // 🏢 Signed in but no org yet
-    if (!orgId) return <OrgSetup />;
-  }
-
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(interval);
@@ -278,6 +243,41 @@ function App() {
     { id: 'utilities', label: 'Utilities', icon: <Wrench className="w-5 h-5" />, view: { type: 'utilities' as const } },
     { id: 'organization', label: 'Organization', icon: <Users className="w-5 h-5" />, view: { type: 'organization' as const } },
   ];
+
+  // Public routes (no auth/org required). These are safe to view without signing in.
+  const isPublicRoute =
+    view.type === 'secret' ||
+    view.type === 'paste' ||
+    view.type === 'paste-list' ||
+    view.type === 'redirect';
+
+  // ✅ Gate the main dashboard behind auth + org membership.
+  // Public routes (secrets/pastes/redirects) bypass this.
+  if (!isPublicRoute) {
+    // ⏳ Still loading auth or org state
+    if (authLoading || orgLoading) {
+      return (
+        <div className="h-screen w-screen flex items-center justify-center">
+          <div className="rounded-3xl bg-zinc-900 px-6 py-5 text-center max-w-md w-full text-white">
+            <h2 className="text-lg font-semibold text-white">Loading...</h2>
+            <p className="text-sm text-white/70">Preparing your workspace.</p>
+
+            {(authError || orgError) && (
+              <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-amber-100 text-sm text-left">
+                {authError ? `Auth error: ${authError}` : `Org error: ${orgError}`}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // 🚪 Not signed in
+    if (!user) return <Onboarding />;
+
+    // 🏢 Signed in but no org yet
+    if (!orgId) return <OrgSetup />;
+  }
 
   const renderHome = () => (
     <div className="w-full">
