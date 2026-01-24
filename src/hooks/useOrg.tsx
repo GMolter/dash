@@ -7,6 +7,7 @@ interface Profile {
   org_id: string | null;
   role: 'member' | 'admin' | 'owner';
   display_name: string | null;
+  email: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -19,9 +20,7 @@ interface Organization {
   created_at: string;
 }
 
-interface OrgMember extends Profile {
-  email?: string;
-}
+type OrgMember = Profile;
 
 interface OrgContextType {
   profile: Profile | null;
@@ -90,17 +89,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
 
         if (membersError) throw membersError;
 
-        const membersWithEmails = await Promise.all(
-          (membersData || []).map(async (member) => {
-            const { data: userData } = await supabase.auth.admin.getUserById(member.id);
-            return {
-              ...member,
-              email: userData.user?.email,
-            };
-          })
-        );
-
-        setMembers(membersWithEmails);
+        setMembers(membersData || []);
       } else {
         setOrganization(null);
         setMembers([]);
