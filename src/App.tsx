@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AnimatedBackground } from './components/AnimatedBackground';
 import { Quicklinks } from './components/Quicklinks';
-import { ProjectsCenter } from './components/ProjectsCenter';
 import { Triggers } from './components/Triggers';
 import { URLShortener } from './components/URLShortener';
 import { SecretSharing } from './components/SecretSharing';
@@ -253,7 +252,6 @@ function App() {
           </button>
 
           {view.tool === 'quicklinks' && <Quicklinks editMode={true} />}
-          {view.tool === 'projects' && <ProjectsCenter />}
           {view.tool === 'triggers' && <Triggers />}
           {view.tool === 'shortener' && <URLShortener />}
           {view.tool === 'secrets' && <SecretSharing />}
@@ -266,7 +264,13 @@ function App() {
     return (
       <UtilitiesHub
         tools={utilities}
-        onOpenTool={(toolId) => setView({ type: 'tool', tool: toolId })}
+        onOpenTool={(toolId) => {
+          if (toolId === 'projects') {
+            navigateTo('/projects');
+          } else {
+            setView({ type: 'tool', tool: toolId });
+          }
+        }}
       />
     );
   };
