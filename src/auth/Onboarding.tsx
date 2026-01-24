@@ -82,7 +82,13 @@ export function Onboarding() {
             </button>
           </div>
 
-          <div className="space-y-4">
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              onSubmit();
+            }}
+          >
             <div>
               <label className="block text-sm text-slate-300 mb-2">Email</label>
               <input
@@ -120,13 +126,13 @@ export function Onboarding() {
             )}
 
             <button
-              onClick={onSubmit}
+              type="submit"
               disabled={!canSubmit || busy}
               className="w-full px-4 py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors font-medium"
             >
               {busy ? 'Working…' : mode === 'signin' ? 'Sign In' : 'Create Account'}
             </button>
-          </div>
+          </form>
 
           <p className="mt-6 text-xs text-slate-400 leading-relaxed">
             By continuing, you agree to basic usage of cookies/local storage for session state.
