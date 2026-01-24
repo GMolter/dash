@@ -12,6 +12,10 @@ import {
   Plus,
 } from 'lucide-react';
 import { AnimatedBackground } from '../components/AnimatedBackground';
+import { PlannerView } from '../components/PlannerView';
+import { BoardView } from '../components/BoardView';
+import { ResourcesView } from '../components/ResourcesView';
+import { OverviewView } from '../components/OverviewView';
 import { supabase } from '../lib/supabase';
 import {
   FileNode,
@@ -417,7 +421,7 @@ export function ProjectDashboard({
                       <input
                         type="file"
                         className="hidden"
-                        accept=".txt,.pdf,.docx,.rtf,.md"
+                        accept=".txt,.pdf,.docx,.doc,.rtf,.md,.png,.jpg,.jpeg,.gif,.svg"
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           e.target.value = '';
@@ -460,10 +464,10 @@ export function ProjectDashboard({
                   : 'col-span-12 lg:col-span-9 2xl:col-span-10'
               }
             >
-              {tab === 'overview' && <Placeholder title="Overview" />}
-              {tab === 'board' && <Placeholder title="Board" />}
-              {tab === 'planner' && <Placeholder title="Planner" />}
-              {tab === 'resources' && <Placeholder title="Resources" />}
+              {tab === 'overview' && projectId && <OverviewView projectId={projectId} />}
+              {tab === 'board' && projectId && <BoardView projectId={projectId} />}
+              {tab === 'planner' && projectId && <PlannerView projectId={projectId} />}
+              {tab === 'resources' && projectId && <ResourcesView projectId={projectId} />}
 
               {tab === 'files' && (
                 <div className="rounded-3xl border border-slate-800/60 bg-slate-950/35 backdrop-blur p-6 min-h-[520px]">

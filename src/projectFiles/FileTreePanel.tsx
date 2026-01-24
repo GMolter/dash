@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { ChevronRight, ChevronDown, Folder, FileText, Paperclip } from 'lucide-react';
+import { ChevronRight, ChevronDown, Folder, FileText, Paperclip, Image } from 'lucide-react';
 import type { FileNode } from './store';
+import { getFileTypeInfo, formatFileSize } from './store';
 
 type TreeNode = FileNode & { children: TreeNode[] };
 
@@ -100,13 +101,16 @@ function TreeList({
         const open = n.type === 'folder' ? isOpen(n.id) : false;
         const padding = 10 + level * 14;
 
+        const fileInfo = getFileTypeInfo(n);
         const icon =
           n.type === 'folder' ? (
             <Folder className="w-4 h-4 text-slate-200" />
           ) : n.type === 'doc' ? (
             <FileText className="w-4 h-4 text-slate-200" />
+          ) : fileInfo.category === 'image' ? (
+            <Image className={`w-4 h-4 ${fileInfo.color}`} />
           ) : (
-            <Paperclip className="w-4 h-4 text-slate-200" />
+            <Paperclip className={`w-4 h-4 ${fileInfo.color}`} />
           );
 
         return (
@@ -164,6 +168,11 @@ function TreeList({
                 <div className="flex items-center gap-2">
                   {icon}
                   <span className="text-sm text-slate-100 truncate">{n.name}</span>
+                  {n.type === 'upload' && n.meta?.size && (
+                    <span className="text-xs text-slate-400">
+                      {formatFileSize(n.meta.size)}
+                    </span>
+                  )}
                 </div>
               </div>
 

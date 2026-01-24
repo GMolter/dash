@@ -150,6 +150,62 @@ async function nextSortIndex(projectId: string, parentId: string | null) {
   return (typeof top === 'number' ? top : 0) + 10;
 }
 
+export function getFileTypeInfo(node: FileNode): {
+  category: 'pdf' | 'docx' | 'image' | 'text' | 'unknown';
+  color: string;
+  extension: string;
+} {
+  if (node.type !== 'upload') {
+    return { category: 'text', color: 'text-slate-200', extension: '' };
+  }
+
+  const mime = node.meta?.mime || '';
+  const name = node.name.toLowerCase();
+
+  if (mime === 'application/pdf' || name.endsWith('.pdf')) {
+    return { category: 'pdf', color: 'text-red-400', extension: 'PDF' };
+  }
+
+  if (
+    mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    mime === 'application/msword' ||
+    name.endsWith('.docx') ||
+    name.endsWith('.doc')
+  ) {
+    return { category: 'docx', color: 'text-blue-400', extension: 'DOCX' };
+  }
+
+  if (
+    mime.startsWith('image/') ||
+    name.endsWith('.png') ||
+    name.endsWith('.jpg') ||
+    name.endsWith('.jpeg') ||
+    name.endsWith('.gif') ||
+    name.endsWith('.svg')
+  ) {
+    return { category: 'image', color: 'text-emerald-400', extension: 'IMG' };
+  }
+
+  if (
+    mime.startsWith('text/') ||
+    name.endsWith('.txt') ||
+    name.endsWith('.md') ||
+    name.endsWith('.rtf')
+  ) {
+    return { category: 'text', color: 'text-slate-300', extension: 'TXT' };
+  }
+
+  return { category: 'unknown', color: 'text-slate-400', extension: 'FILE' };
+}
+
+export function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${Math.round(bytes / Math.pow(k, i) * 10) / 10} ${sizes[i]}`;
+}
+
 export async function uploadAttachment(projectId: string, file: File, parentId: string | null) {
   const path = `${projectId}/${Date.now()}-${file.name}`;
   const { error: upErr } = await supabase.storage.from('project-files').upload(path, file);
