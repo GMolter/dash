@@ -12,7 +12,12 @@ type Org = {
 };
 
 type AuthContextType = {
+  // Initial auth hydrate/loading (first paint)
   loading: boolean;
+
+  // Once true, the app should NEVER full-screen-block again for org refreshes
+  hydrated: boolean;
+
   user: any | null;
 
   // Optional diagnostics (helps when auth/org lookups are blocked by RLS)
@@ -30,7 +35,6 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 async function ensureProfileRow(userId: string) {
-  // Some accounts may not have a profiles row yet; create it if missing.
   try {
     const { data: existing, error: readErr } = await supabase
       .from('profiles')
@@ -38,11 +42,9 @@ async function ensureProfileRow(userId: string) {
       .eq('id', userId)
       .maybeSingle();
 
-    // If RLS blocks select, readErr will exist; caller will fall back gracefully.
     if (readErr) return;
 
     if (!existing) {
-      // Insert is best-effort: if RLS blocks it, we'll still proceed and treat as no-org.
       await supabase.from('profiles').insert({
         id: userId,
         org_id: null,
@@ -50,13 +52,14 @@ async function ensureProfileRow(userId: string) {
       });
     }
   } catch {
-    // Swallow any unexpected client/network issues.
     return;
   }
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
+  const [hydrated, setHydrated] = useState(false);
+
   const [user, setUser] = useState<any | null>(null);
 
   const [authError, setAuthError] = useState<string | null>(null);
@@ -74,25 +77,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const myNonce = Date.now();
     orgLoadNonceRef.current = myNonce;
 
+    // ✅ allow background refreshes without "big block" if already hydrated
     setOrgLoading(true);
     setOrgError(null);
 
     try {
-      // Ensure profile exists (best effort)
       await ensureProfileRow(uid);
 
-      // Read profile -> org_id + role
       const { data: profile, error: profErr } = await supabase
         .from('profiles')
         .select('org_id, role')
         .eq('id', uid)
         .single();
 
-      // If another load started since we began, ignore this result.
       if (orgLoadNonceRef.current !== myNonce) return;
 
       if (profErr || !profile) {
-        // If this fails, we can't know org membership -> treat as no org, but stop spinner.
         setOrgId(null);
         setOrg(null);
         setRole(null);
@@ -109,7 +109,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Read org row (needs org SELECT policy)
       const { data: orgRow, error: orgErr } = await supabase
         .from('organizations')
         .select('id,name,icon_color,code,owner_id')
@@ -126,13 +125,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setOrg(orgRow as Org);
     } catch (e: any) {
-      // Any unexpected runtime/network errors should never leave the app stuck.
       setOrgId(null);
       setOrg(null);
       setRole(null);
       setOrgError(String(e?.message || e));
     } finally {
-      // Always stop the spinner for the latest request.
       if (orgLoadNonceRef.current === myNonce) setOrgLoading(false);
     }
   };
@@ -159,7 +156,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setRole(null);
         }
       } catch (e: any) {
-        // If anything goes sideways, never leave the app in an infinite "Loading…" state.
         setUser(null);
         setOrgId(null);
         setOrg(null);
@@ -167,29 +163,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setOrgLoading(false);
         setAuthError(String(e?.message || e));
       } finally {
+        // ✅ "first hydrate" completes here
         setLoading(false);
+        setHydrated(true);
       }
     };
 
     init();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
       const sessionUser = session?.user ?? null;
-      setUser(sessionUser);
 
-      // Important: don’t allow loading to remain true if init failed earlier.
-      setLoading(false);
+      // Always track user changes
+      setUser(sessionUser);
       setAuthError(null);
 
-      if (sessionUser?.id) {
-        await loadOrgState(sessionUser.id);
-      } else {
-        setOrgLoading(false);
+      // ✅ If already hydrated, NEVER revert to a full-screen loading gate.
+      // We can still refresh org data in the background.
+      if (event === 'SIGNED_OUT' || !sessionUser?.id) {
         setOrgId(null);
         setOrg(null);
         setRole(null);
         setOrgError(null);
+        setOrgLoading(false);
+        setLoading(false);
+        setHydrated(true);
+        return;
       }
+
+      // For SIGNED_IN / TOKEN_REFRESHED / USER_UPDATED etc:
+      await loadOrgState(sessionUser.id);
+
+      // Ensure we don't regress UI to "initial loading"
+      setLoading(false);
+      setHydrated(true);
     });
 
     return () => {
@@ -201,6 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<AuthContextType>(
     () => ({
       loading,
+      hydrated,
       user,
       authError,
       orgLoading,
@@ -213,7 +221,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await loadOrgState(user.id);
       },
     }),
-    [loading, user, authError, orgLoading, orgId, org, role, orgError]
+    [loading, hydrated, user, authError, orgLoading, orgId, org, role, orgError]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
