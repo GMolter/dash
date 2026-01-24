@@ -41,7 +41,7 @@ type View =
 type BannerState = { enabled: boolean; text: string };
 
 function App() {
-  const { loading: authLoading, user, orgId, orgLoading } = useAuth();
+  const { loading: authLoading, user, orgId, orgLoading, authError, orgError } = useAuth();
 
   const [view, setView] = useState<View>({ type: 'home' });
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -69,17 +69,24 @@ function App() {
   // Public routes (secrets/pastes/redirects) bypass this.
   if (!isPublicRoute) {
     if (authLoading || orgLoading) {
-      return (
-        <div className="min-h-screen text-white relative overflow-hidden">
-          <AnimatedBackground />
-          <div className="relative z-10 min-h-screen flex items-center justify-center p-6">
-            <div className="w-full max-w-md rounded-3xl border border-slate-800/60 bg-slate-950/60 backdrop-blur p-7 shadow-2xl">
-              <div className="text-xl font-semibold">Loading…</div>
-              <div className="mt-2 text-slate-300">Preparing your workspace.</div>
-            </div>
+  return (
+    <div className="h-screen w-screen flex items-center justify-center">
+      <div className="rounded-3xl bg-zinc-900 px-6 py-5 text-center max-w-md w-full">
+        <h2 className="text-lg font-semibold">Loading...</h2>
+        <p className="text-sm opacity-70">Preparing your workspace.</p>
+
+        {(authError || orgError) && (
+          <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-amber-100 text-sm text-left">
+            {authError
+              ? `Auth error: ${authError}`
+              : `Org error: ${orgError}`}
           </div>
-        </div>
-      );
+        )}
+      </div>
+    </div>
+  );
+}
+
     }
 
     if (!user) return <Onboarding />;
