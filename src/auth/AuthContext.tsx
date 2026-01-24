@@ -15,7 +15,7 @@ type AuthContextType = {
   // Initial auth hydrate/loading (first paint)
   loading: boolean;
 
-  // Once true, the app should NEVER full-screen-block again for org refreshes
+  // Once true, the app has performed at least one session check.
   hydrated: boolean;
 
   user: any | null;
@@ -33,6 +33,74 @@ type AuthContextType = {
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
+
+// -----------------------------
+// Local bootstrap cache
+// -----------------------------
+const BOOTSTRAP_KEY = 'olio.bootstrap.v1';
+
+type BootstrapCache = {
+  user?: any | null;
+  orgId?: string | null;
+  role?: Role | null;
+  ts?: number;
+};
+
+function safeReadBootstrap(): BootstrapCache {
+  try {
+    const raw = localStorage.getItem(BOOTSTRAP_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as BootstrapCache;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function safeWriteBootstrap(next: BootstrapCache) {
+  try {
+    localStorage.setItem(
+      BOOTSTRAP_KEY,
+      JSON.stringify({
+        user: next.user ?? null,
+        orgId: next.orgId ?? null,
+        role: next.role ?? null,
+        ts: Date.now(),
+      })
+    );
+  } catch {
+    // ignore
+  }
+}
+
+function safeClearBootstrap() {
+  try {
+    localStorage.removeItem(BOOTSTRAP_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+// Supabase stores the current session in localStorage under a key like:
+// "sb-<project-ref>-auth-token"
+function safeReadSupabaseSessionUser(): any | null {
+  try {
+    const keys = Object.keys(localStorage);
+    const authKey = keys.find((k) => k.startsWith('sb-') && k.endsWith('-auth-token'));
+    if (!authKey) return null;
+
+    const raw = localStorage.getItem(authKey);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    // Supabase v2 stores either { currentSession } or { access_token, user, ... } depending on version/config
+    const session = parsed?.currentSession ?? parsed;
+    const u = session?.user ?? null;
+    return u ?? null;
+  } catch {
+    return null;
+  }
+}
 
 async function ensureProfileRow(userId: string) {
   try {
@@ -57,18 +125,31 @@ async function ensureProfileRow(userId: string) {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [loading, setLoading] = useState(true);
-  const [hydrated, setHydrated] = useState(false);
+  // Bootstrap from localStorage so refreshes don't flash "blank/loading"
+  const bootstrap = typeof window !== 'undefined' ? safeReadBootstrap() : {};
 
-  const [user, setUser] = useState<any | null>(null);
+  const [loading, setLoading] = useState(() => {
+    // If we have a cached user+orgId, don't consider ourselves "blocking/loading"
+    return !(bootstrap?.user && bootstrap?.orgId);
+  });
+
+  const [hydrated, setHydrated] = useState(() => {
+    // Treat cached state as hydrated enough to render immediately; we still verify in the background.
+    return !!(bootstrap?.user && bootstrap?.orgId);
+  });
+
+  const [user, setUser] = useState<any | null>(() => bootstrap?.user ?? null);
 
   const [authError, setAuthError] = useState<string | null>(null);
   const [orgError, setOrgError] = useState<string | null>(null);
 
-  const [orgLoading, setOrgLoading] = useState(true);
-  const [orgId, setOrgId] = useState<string | null>(null);
+  const [orgLoading, setOrgLoading] = useState(() => {
+    return !(bootstrap?.user && bootstrap?.orgId);
+  });
+
+  const [orgId, setOrgId] = useState<string | null>(() => bootstrap?.orgId ?? null);
   const [org, setOrg] = useState<Org | null>(null);
-  const [role, setRole] = useState<Role | null>(null);
+  const [role, setRole] = useState<Role | null>(() => (bootstrap?.role as Role) ?? null);
 
   // Prevent out-of-order org loads from leaving the app in a perpetual spinner.
   const orgLoadNonceRef = useRef<number>(0);
@@ -77,7 +158,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const myNonce = Date.now();
     orgLoadNonceRef.current = myNonce;
 
-    // ✅ allow background refreshes without "big block" if already hydrated
     setOrgLoading(true);
     setOrgError(null);
 
@@ -97,12 +177,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setOrg(null);
         setRole(null);
         setOrgError(profErr?.message || null);
+        safeWriteBootstrap({ user: uid ? { id: uid } : null, orgId: null, role: null });
         return;
       }
 
       const nextOrgId = profile.org_id ? String(profile.org_id) : null;
+      const nextRole = ((profile.role as Role) ?? 'member') as Role;
+
       setOrgId(nextOrgId);
-      setRole((profile.role as Role) ?? 'member');
+      setRole(nextRole);
+
+      // Persist for instant refresh rendering
+      safeWriteBootstrap({ user: { id: uid }, orgId: nextOrgId, role: nextRole });
 
       if (!nextOrgId) {
         setOrg(null);
@@ -137,6 +223,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
+    // If Supabase has a session cached, set user immediately (even before async getSession returns)
+    try {
+      const cachedSupabaseUser = safeReadSupabaseSessionUser();
+      if (cachedSupabaseUser?.id && !user) {
+        setUser(cachedSupabaseUser);
+      }
+    } catch {
+      // ignore
+    }
+
     const init = async () => {
       setAuthError(null);
 
@@ -154,6 +250,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setOrgId(null);
           setOrg(null);
           setRole(null);
+          safeClearBootstrap();
         }
       } catch (e: any) {
         setUser(null);
@@ -162,8 +259,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setRole(null);
         setOrgLoading(false);
         setAuthError(String(e?.message || e));
+        safeClearBootstrap();
       } finally {
-        // ✅ "first hydrate" completes here
         setLoading(false);
         setHydrated(true);
       }
@@ -174,12 +271,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
       const sessionUser = session?.user ?? null;
 
-      // Always track user changes
       setUser(sessionUser);
       setAuthError(null);
 
-      // ✅ If already hydrated, NEVER revert to a full-screen loading gate.
-      // We can still refresh org data in the background.
       if (event === 'SIGNED_OUT' || !sessionUser?.id) {
         setOrgId(null);
         setOrg(null);
@@ -188,13 +282,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setOrgLoading(false);
         setLoading(false);
         setHydrated(true);
+        safeClearBootstrap();
         return;
       }
 
-      // For SIGNED_IN / TOKEN_REFRESHED / USER_UPDATED etc:
       await loadOrgState(sessionUser.id);
 
-      // Ensure we don't regress UI to "initial loading"
       setLoading(false);
       setHydrated(true);
     });
@@ -203,6 +296,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false;
       sub.subscription.unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const value = useMemo<AuthContextType>(
