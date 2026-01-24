@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, GripVertical, Pencil } from 'lucide-react';
+import { Plus, Trash2, GripVertical, Pencil, Users, User as UserIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useOrg } from '../hooks/useOrg';
+import { useAuth } from '../hooks/useAuth';
 
 interface Quicklink {
   id: string;
@@ -9,6 +10,8 @@ interface Quicklink {
   url: string;
   icon: string;
   order_index: number;
+  scope: 'personal' | 'shared' | 'both';
+  user_id: string;
 }
 
 interface Props {
@@ -16,6 +19,7 @@ interface Props {
 }
 
 export function Quicklinks({ editMode = false }: Props) {
+  const { user } = useAuth();
   const { organization } = useOrg();
   const [links, setLinks] = useState<Quicklink[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -23,15 +27,16 @@ export function Quicklinks({ editMode = false }: Props) {
   const [linkToDelete, setLinkToDelete] = useState<Quicklink | null>(null);
   const [editingLink, setEditingLink] = useState<Quicklink | null>(null);
 
-  // Drag + drop
+  const [viewFilter, setViewFilter] = useState<'personal' | 'shared'>('shared');
+
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
 
-  // Form state
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [icon, setIcon] = useState('🔗');
+  const [scope, setScope] = useState<'personal' | 'shared' | 'both'>('shared');
 
   const looksLikeUrl = (value: string) => {
     const v = (value || '').trim();
@@ -102,12 +107,13 @@ export function Quicklinks({ editMode = false }: Props) {
     setTitle('');
     setUrl('');
     setIcon('🔗');
+    setScope('shared');
     setShowForm(false);
     setEditingLink(null);
   };
 
   const addLink = async () => {
-    if (!title || !url || !organization) return;
+    if (!title || !url || !organization || !user) return;
 
     const { error } = await supabase.from('quicklinks').insert({
       title,
@@ -115,6 +121,8 @@ export function Quicklinks({ editMode = false }: Props) {
       icon,
       order_index: links.length,
       org_id: organization.id,
+      user_id: user.id,
+      scope,
     });
 
     if (!error) {
@@ -128,7 +136,7 @@ export function Quicklinks({ editMode = false }: Props) {
 
     const { error } = await supabase
       .from('quicklinks')
-      .update({ title, url, icon })
+      .update({ title, url, icon, scope })
       .eq('id', editingLink.id);
 
     if (!error) {
@@ -159,10 +167,10 @@ export function Quicklinks({ editMode = false }: Props) {
     setTitle(link.title);
     setUrl(link.url);
     setIcon(link.icon || '🔗');
+    setScope(link.scope || 'shared');
     setShowForm(true);
   };
 
-  // ---------- Drag & Drop (Edit mode only) ----------
   const moveItem = (arr: Quicklink[], fromIdx: number, toIdx: number) => {
     const copy = [...arr];
     const [item] = copy.splice(fromIdx, 1);
@@ -171,15 +179,11 @@ export function Quicklinks({ editMode = false }: Props) {
   };
 
   const persistOrder = async (ordered: Quicklink[]) => {
-    // Update only when needed (but still robust)
     setSavingOrder(true);
     try {
       const updates = ordered.map((l, idx) => ({ id: l.id, order_index: idx }));
-      // Only update rows whose index changed
       const changed = updates.filter((u, idx) => ordered[idx]?.order_index !== u.order_index);
 
-      // If we lost original order_index in memory (because we re-rendered),
-      // still safe to update everything.
       const toWrite = changed.length > 0 ? changed : updates;
 
       await Promise.all(
@@ -188,7 +192,6 @@ export function Quicklinks({ editMode = false }: Props) {
         )
       );
 
-      // Reflect the new order_index locally too
       setLinks((prev) =>
         ordered.map((l, idx) => ({
           ...l,
@@ -206,16 +209,12 @@ export function Quicklinks({ editMode = false }: Props) {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', id);
 
-    // Some browsers need this to show a proper drag
     try {
       e.dataTransfer.setDragImage(e.currentTarget as HTMLElement, 0, 0);
-    } catch {
-      // ignore
-    }
+    } catch {}
   };
 
   const onDragOver = (id: string) => (e: React.DragEvent) => {
-    // Must preventDefault to allow dropping
     e.preventDefault();
     if (dragOverId !== id) setDragOverId(id);
     e.dataTransfer.dropEffect = 'move';
@@ -250,33 +249,70 @@ export function Quicklinks({ editMode = false }: Props) {
     setDragOverId(null);
   };
 
-  // ---------- READ-ONLY MODE (Home page) ----------
+  const filteredLinks = links.filter((link) => {
+    if (viewFilter === 'personal') {
+      return link.scope === 'personal' || link.scope === 'both';
+    } else {
+      return link.scope === 'shared' || link.scope === 'both';
+    }
+  });
+
   if (!editMode) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
-        {links.map((link) => (
-          <a
-            key={link.id}
-            href={formatUrl(link.url)}
-            className="group bg-slate-800/50 hover:bg-slate-700/50 backdrop-blur rounded-xl p-6 border border-slate-700/50 hover:border-slate-600 transition-all flex flex-col items-center justify-center text-center"
-          >
-            <div className="mb-3">
-              <LinkIcon link={link} size={42} />
-            </div>
-            <h3 className="text-white font-medium group-hover:text-blue-400 transition-colors">
-              {link.title}
-            </h3>
-          </a>
-        ))}
+      <div className="w-full">
+        <div className="mb-6 flex items-center justify-center">
+          <div className="inline-flex bg-slate-800/50 backdrop-blur-sm rounded-lg p-1 border border-slate-700">
+            <button
+              onClick={() => setViewFilter('personal')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
+                viewFilter === 'personal'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <UserIcon className="w-4 h-4" />
+              Personal
+            </button>
+            <button
+              onClick={() => setViewFilter('shared')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
+                viewFilter === 'shared'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              Shared
+            </button>
+          </div>
+        </div>
 
-        {links.length === 0 && (
-          <div className="col-span-full text-center py-12 text-slate-400">No quick links yet.</div>
-        )}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
+          {filteredLinks.map((link) => (
+            <a
+              key={link.id}
+              href={formatUrl(link.url)}
+              className="group bg-slate-800/50 hover:bg-slate-700/50 backdrop-blur rounded-xl p-6 border border-slate-700/50 hover:border-slate-600 transition-all flex flex-col items-center justify-center text-center"
+            >
+              <div className="mb-3">
+                <LinkIcon link={link} size={42} />
+              </div>
+              <h3 className="text-white font-medium group-hover:text-blue-400 transition-colors">
+                {link.title}
+              </h3>
+            </a>
+          ))}
+
+          {filteredLinks.length === 0 && (
+            <div className="col-span-full text-center py-12 text-slate-400">
+              No {viewFilter} quick links yet.
+            </div>
+          )}
+        </div>
       </div>
     );
   }
 
-  // ---------- EDIT MODE (Utilities page) ----------
   return (
     <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg p-6 border border-slate-700">
       <div className="flex items-center justify-between mb-6">
@@ -296,7 +332,6 @@ export function Quicklinks({ editMode = false }: Props) {
         </button>
       </div>
 
-      {/* Add/Edit Form */}
       {showForm && (
         <div className="mb-6 p-6 bg-slate-900/50 rounded-lg border border-slate-700">
           <h3 className="text-lg font-semibold text-white mb-4">
@@ -339,6 +374,19 @@ export function Quicklinks({ editMode = false }: Props) {
               />
             </div>
 
+            <div>
+              <label className="block text-sm text-slate-300 mb-2">Visibility</label>
+              <select
+                value={scope}
+                onChange={(e) => setScope(e.target.value as 'personal' | 'shared' | 'both')}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="personal">Personal - Only you can see this</option>
+                <option value="shared">Shared - All organization members can see this</option>
+                <option value="both">Both - Visible in personal and shared views</option>
+              </select>
+            </div>
+
             <div className="flex gap-2">
               <button
                 onClick={editingLink ? updateLink : addLink}
@@ -357,7 +405,6 @@ export function Quicklinks({ editMode = false }: Props) {
         </div>
       )}
 
-      {/* Links Grid (Editable) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {links.map((link) => {
           const isDragging = draggingId === link.id;
@@ -374,7 +421,6 @@ export function Quicklinks({ editMode = false }: Props) {
               onDragOver={onDragOver(link.id)}
               onDrop={onDropOn(link.id)}
             >
-              {/* Drag handle */}
               <button
                 draggable
                 onDragStart={onDragStart(link.id)}
@@ -385,6 +431,24 @@ export function Quicklinks({ editMode = false }: Props) {
               >
                 <GripVertical className="w-4 h-4 text-slate-300" />
               </button>
+
+              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                {link.scope === 'personal' && (
+                  <span className="px-2 py-1 bg-blue-600/20 text-blue-400 text-xs rounded border border-blue-600/30">
+                    Personal
+                  </span>
+                )}
+                {link.scope === 'shared' && (
+                  <span className="px-2 py-1 bg-green-600/20 text-green-400 text-xs rounded border border-green-600/30">
+                    Shared
+                  </span>
+                )}
+                {link.scope === 'both' && (
+                  <span className="px-2 py-1 bg-purple-600/20 text-purple-400 text-xs rounded border border-purple-600/30">
+                    Both
+                  </span>
+                )}
+              </div>
 
               <div className="mb-3">
                 <LinkIcon link={link} size={42} />
@@ -415,7 +479,6 @@ export function Quicklinks({ editMode = false }: Props) {
         <p className="text-slate-400 text-center py-12">No quick links yet. Add one to get started!</p>
       )}
 
-      {/* Delete Confirmation Modal */}
       {showDeleteModal && linkToDelete && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 max-w-md w-full mx-4">

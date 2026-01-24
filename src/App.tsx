@@ -312,7 +312,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen text-white relative overflow-hidden">
+    <div className="min-h-screen text-white relative">
       <AnimatedBackground />
       <div className="relative z-10 min-h-screen flex flex-col">
         <header className="relative z-20 border-b border-slate-800/50 bg-slate-950/80 backdrop-blur">
@@ -337,11 +337,7 @@ function App() {
                 </p>
 
                 {organization && (
-                  <div className="mt-2 flex items-center gap-2 text-sm text-slate-400">
-                    <div
-                      className="w-3 h-3 rounded"
-                      style={{ backgroundColor: organization.icon_color }}
-                    />
+                  <div className="mt-2 text-sm text-slate-400">
                     {organization.name}
                   </div>
                 )}

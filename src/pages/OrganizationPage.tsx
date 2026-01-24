@@ -1,33 +1,23 @@
 import { useState } from 'react';
 import { useOrg } from '../hooks/useOrg';
 import { usePermission } from '../hooks/usePermission';
-import { Building2, Copy, Users, Settings, Crown, Shield as ShieldIcon, User } from 'lucide-react';
-
-const PRESET_COLORS = [
-  { name: 'Blue', value: '#3b82f6' },
-  { name: 'Green', value: '#10b981' },
-  { name: 'Red', value: '#ef4444' },
-  { name: 'Orange', value: '#f97316' },
-  { name: 'Yellow', value: '#eab308' },
-  { name: 'Purple', value: '#a855f7' },
-  { name: 'Pink', value: '#ec4899' },
-  { name: 'Teal', value: '#14b8a6' },
-  { name: 'Cyan', value: '#06b6d4' },
-  { name: 'Slate', value: '#64748b' },
-];
+import { Building2, Copy, Users, Settings, Crown, Shield as ShieldIcon, User, RefreshCw } from 'lucide-react';
 
 type Tab = 'overview' | 'manage';
 
 export function OrganizationPage() {
-  const { organization, members, updateOrg, updateMemberRole, removeMember } = useOrg();
+  const { organization, members, updateOrg, regenerateCode, updateMemberRole, removeMember } = useOrg();
   const { canManageOrg } = usePermission();
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [copied, setCopied] = useState(false);
 
   const [editName, setEditName] = useState(organization?.name || '');
-  const [editColor, setEditColor] = useState(organization?.icon_color || PRESET_COLORS[0].value);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [newCode, setNewCode] = useState('');
 
   const copyCode = () => {
     if (organization) {
@@ -43,7 +33,6 @@ export function OrganizationPage() {
 
     const result = await updateOrg({
       name: editName,
-      icon_color: editColor,
     });
 
     if (!result.success) {
@@ -61,6 +50,20 @@ export function OrganizationPage() {
   const handleRemove = async (memberId: string) => {
     if (confirm('Are you sure you want to remove this member?')) {
       await removeMember(memberId);
+    }
+  };
+
+  const handleRegenerateCode = async () => {
+    setRegenerating(true);
+    const result = await regenerateCode();
+    setRegenerating(false);
+
+    if (result.success && result.newCode) {
+      setNewCode(result.newCode);
+      setTimeout(() => {
+        setShowRegenerateDialog(false);
+        setNewCode('');
+      }, 5000);
     }
   };
 
@@ -157,17 +160,6 @@ export function OrganizationPage() {
                     <div className="text-sm text-slate-400 mb-1">Organization Name</div>
                     <div className="text-xl font-semibold text-white">{organization.name}</div>
                   </div>
-
-                  <div className="bg-slate-900/50 rounded-lg p-4">
-                    <div className="text-sm text-slate-400 mb-2">Organization Color</div>
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-12 h-12 rounded-lg border-2 border-slate-600"
-                        style={{ backgroundColor: organization.icon_color }}
-                      />
-                      <div className="font-mono text-slate-300">{organization.icon_color}</div>
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -212,25 +204,6 @@ export function OrganizationPage() {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">Icon Color</label>
-                    <div className="grid grid-cols-5 sm:grid-cols-10 gap-3">
-                      {PRESET_COLORS.map((color) => (
-                        <button
-                          key={color.value}
-                          onClick={() => setEditColor(color.value)}
-                          className={`w-full aspect-square rounded-lg transition-all min-h-[48px] ${
-                            editColor === color.value
-                              ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-800 scale-110'
-                              : 'hover:scale-105'
-                          }`}
-                          style={{ backgroundColor: color.value }}
-                          title={color.name}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
                   {error && (
                     <div className="p-3 bg-red-900/20 border border-red-700 rounded-lg text-red-400 text-sm">
                       {error}
@@ -244,6 +217,27 @@ export function OrganizationPage() {
                   >
                     {saving ? 'Saving...' : 'Save Changes'}
                   </button>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-4">Security</h3>
+                <div className="bg-slate-900/50 rounded-lg p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-white mb-1">Regenerate Organization Code</div>
+                      <div className="text-sm text-slate-400">
+                        Generate a new 4-digit code for your organization. Current members will remain, but the old code will no longer work.
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowRegenerateDialog(true)}
+                      className="ml-4 px-4 py-2 bg-amber-600 hover:bg-amber-700 rounded-lg text-white text-sm font-medium transition-colors flex items-center gap-2"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Regenerate
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -289,6 +283,58 @@ export function OrganizationPage() {
           )}
         </div>
       </div>
+
+      {showRegenerateDialog && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-6">
+          <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-md w-full p-6">
+            <h3 className="text-xl font-semibold text-white mb-4">Regenerate Organization Code</h3>
+
+            {newCode ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-green-900/20 border border-green-700 rounded-lg">
+                  <div className="text-sm text-green-400 mb-2">New code generated successfully!</div>
+                  <div className="text-3xl font-mono font-bold text-white tracking-widest text-center">
+                    {newCode}
+                  </div>
+                </div>
+                <div className="text-sm text-slate-400">
+                  This dialog will close automatically in a few seconds. Make sure to share the new code with your team.
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-4 mb-6">
+                  <div className="p-4 bg-amber-900/20 border border-amber-700 rounded-lg">
+                    <div className="text-sm text-amber-400">
+                      This will generate a new 4-digit code for your organization. The current code will no longer work for new members to join.
+                    </div>
+                  </div>
+                  <div className="text-sm text-slate-300">
+                    Current members will remain in the organization. Only the join code will change.
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowRegenerateDialog(false)}
+                    disabled={regenerating}
+                    className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 rounded-lg text-white font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleRegenerateCode}
+                    disabled={regenerating}
+                    className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-800 disabled:cursor-not-allowed rounded-lg text-white font-medium transition-colors"
+                  >
+                    {regenerating ? 'Generating...' : 'Regenerate Code'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

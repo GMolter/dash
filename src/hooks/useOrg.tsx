@@ -14,7 +14,6 @@ interface Profile {
 interface Organization {
   id: string;
   name: string;
-  icon_color: string;
   code: string;
   owner_id: string;
   created_at: string;
@@ -32,8 +31,9 @@ interface OrgContextType {
   error: string | null;
   refreshOrg: () => Promise<void>;
   joinOrg: (code: string) => Promise<{ success: boolean; error?: string }>;
-  createOrg: (name: string, iconColor: string) => Promise<{ success: boolean; error?: string }>;
+  createOrg: (name: string) => Promise<{ success: boolean; error?: string }>;
   updateOrg: (updates: Partial<Organization>) => Promise<{ success: boolean; error?: string }>;
+  regenerateCode: () => Promise<{ success: boolean; newCode?: string; error?: string }>;
   leaveOrg: () => Promise<{ success: boolean; error?: string }>;
   deleteOrg: () => Promise<{ success: boolean; error?: string }>;
   updateMemberRole: (memberId: string, newRole: 'member' | 'admin' | 'owner') => Promise<{ success: boolean; error?: string }>;
@@ -149,7 +149,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const createOrg = async (name: string, iconColor: string) => {
+  const createOrg = async (name: string) => {
     if (!user) return { success: false, error: 'Not authenticated' };
 
     try {
@@ -173,7 +173,6 @@ export function OrgProvider({ children }: { children: ReactNode }) {
         .from('organizations')
         .insert({
           name,
-          icon_color: iconColor,
           code,
           owner_id: user.id,
         })
@@ -218,6 +217,45 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       return { success: true };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update organization';
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  const regenerateCode = async () => {
+    if (!organization) return { success: false, error: 'No organization' };
+    if (!profile || !['owner', 'admin'].includes(profile.role)) {
+      return { success: false, error: 'Permission denied' };
+    }
+
+    try {
+      setError(null);
+
+      let code = '';
+      let isUnique = false;
+
+      while (!isUnique) {
+        code = Math.floor(1000 + Math.random() * 9000).toString();
+        const { data: existing } = await supabase
+          .from('organizations')
+          .select('id')
+          .eq('code', code)
+          .maybeSingle();
+
+        if (!existing) isUnique = true;
+      }
+
+      const { error: updateError } = await supabase
+        .from('organizations')
+        .update({ code })
+        .eq('id', organization.id);
+
+      if (updateError) throw updateError;
+
+      await refreshOrg();
+      return { success: true, newCode: code };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to regenerate code';
       setError(errorMessage);
       return { success: false, error: errorMessage };
     }
@@ -330,6 +368,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
         joinOrg,
         createOrg,
         updateOrg,
+        regenerateCode,
         leaveOrg,
         deleteOrg,
         updateMemberRole,

@@ -2,19 +2,6 @@ import { useState } from 'react';
 import { useOrg } from '../hooks/useOrg';
 import { Building2, Users, ArrowLeft } from 'lucide-react';
 
-const PRESET_COLORS = [
-  { name: 'Blue', value: '#3b82f6' },
-  { name: 'Green', value: '#10b981' },
-  { name: 'Red', value: '#ef4444' },
-  { name: 'Orange', value: '#f97316' },
-  { name: 'Yellow', value: '#eab308' },
-  { name: 'Purple', value: '#a855f7' },
-  { name: 'Pink', value: '#ec4899' },
-  { name: 'Teal', value: '#14b8a6' },
-  { name: 'Cyan', value: '#06b6d4' },
-  { name: 'Slate', value: '#64748b' },
-];
-
 type Step = 'choose' | 'join' | 'create';
 
 export function OrgSetup() {
@@ -26,7 +13,6 @@ export function OrgSetup() {
   const [joinCode, setJoinCode] = useState('');
 
   const [orgName, setOrgName] = useState('');
-  const [selectedColor, setSelectedColor] = useState(PRESET_COLORS[0].value);
 
   const handleJoin = async () => {
     if (!joinCode.trim()) {
@@ -59,7 +45,7 @@ export function OrgSetup() {
     setLoading(true);
     setError('');
 
-    const result = await createOrg(orgName.trim(), selectedColor);
+    const result = await createOrg(orgName.trim());
 
     if (!result.success) {
       setError(result.error || 'Failed to create organization');
@@ -194,25 +180,6 @@ export function OrgSetup() {
                 placeholder="My Organization"
                 className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Icon Color</label>
-              <div className="grid grid-cols-5 gap-3">
-                {PRESET_COLORS.map((color) => (
-                  <button
-                    key={color.value}
-                    onClick={() => setSelectedColor(color.value)}
-                    className={`w-full aspect-square rounded-lg transition-all ${
-                      selectedColor === color.value
-                        ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-800 scale-110'
-                        : 'hover:scale-105'
-                    }`}
-                    style={{ backgroundColor: color.value }}
-                    title={color.name}
-                  />
-                ))}
-              </div>
             </div>
 
             {error && (
