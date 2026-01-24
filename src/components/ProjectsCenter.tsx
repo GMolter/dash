@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Folder, Trash2, Tag, Pencil } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useOrg } from '../hooks/useOrg';
 
 interface Project {
   id: string;
@@ -13,6 +14,7 @@ interface Project {
 }
 
 export function ProjectsCenter() {
+  const { organization } = useOrg();
   const [projects, setProjects] = useState<Project[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -41,13 +43,14 @@ export function ProjectsCenter() {
   };
 
   const addProject = async () => {
-    if (!name) return;
+    if (!name || !organization) return;
 
     const { error } = await supabase.from('projects').insert({
       name,
       description,
       url: url || null,
       status,
+      org_id: organization.id,
       tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
     });
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FileText, Copy, ExternalLink, Trash2, Clock, Eye } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useOrg } from '../hooks/useOrg';
 
 interface Paste {
   id: string;
@@ -14,6 +15,7 @@ interface Paste {
 }
 
 export function Pastebin() {
+  const { organization } = useOrg();
   const [pastes, setPastes] = useState<Paste[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState('');
@@ -64,7 +66,7 @@ export function Pastebin() {
   };
 
   const createPaste = async () => {
-    if (!content.trim()) return;
+    if (!content.trim() || !organization) return;
 
     const pasteCode = generatePasteCode();
     const expiresAt = getExpiryDate();
@@ -75,6 +77,7 @@ export function Pastebin() {
       content: content,
       language: language,
       expires_at: expiresAt,
+      org_id: organization.id,
     });
 
     if (!error) {

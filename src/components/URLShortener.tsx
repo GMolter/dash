@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link2, Copy, ExternalLink, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useOrg } from '../hooks/useOrg';
 
 interface ShortUrl {
   id: string;
@@ -11,6 +12,7 @@ interface ShortUrl {
 }
 
 export function URLShortener() {
+  const { organization } = useOrg();
   const [urls, setUrls] = useState<ShortUrl[]>([]);
   const [targetUrl, setTargetUrl] = useState('');
   const [customCode, setCustomCode] = useState('');
@@ -48,13 +50,14 @@ export function URLShortener() {
   };
 
   const createShortUrl = async () => {
-    if (!targetUrl) return;
+    if (!targetUrl || !organization) return;
 
     const shortCode = (customCode || generateShortCode()).trim();
 
     const { error } = await supabase.from('short_urls').insert({
       short_code: shortCode,
       target_url: targetUrl.trim(),
+      org_id: organization.id,
     });
 
     if (error) {

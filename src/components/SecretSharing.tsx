@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Shield, Copy, Eye, Clock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useOrg } from '../hooks/useOrg';
 
 interface Secret {
   id: string;
@@ -11,6 +12,7 @@ interface Secret {
 }
 
 export function SecretSharing() {
+  const { organization } = useOrg();
   const [secrets, setSecrets] = useState<Secret[]>([]);
   const [content, setContent] = useState('');
   const [expiryHours, setExpiryHours] = useState(24);
@@ -36,7 +38,7 @@ export function SecretSharing() {
   };
 
   const createSecret = async () => {
-    if (!content.trim()) return;
+    if (!content.trim() || !organization) return;
 
     const secretCode = generateSecretCode();
     const expiresAt = new Date();
@@ -46,6 +48,7 @@ export function SecretSharing() {
       secret_code: secretCode,
       content: content,
       expires_at: expiresAt.toISOString(),
+      org_id: organization.id,
     });
 
     if (!error) {

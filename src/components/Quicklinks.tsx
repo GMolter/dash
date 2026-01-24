@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, GripVertical, Pencil } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useOrg } from '../hooks/useOrg';
 
 interface Quicklink {
   id: string;
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function Quicklinks({ editMode = false }: Props) {
+  const { organization } = useOrg();
   const [links, setLinks] = useState<Quicklink[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -105,13 +107,14 @@ export function Quicklinks({ editMode = false }: Props) {
   };
 
   const addLink = async () => {
-    if (!title || !url) return;
+    if (!title || !url || !organization) return;
 
     const { error } = await supabase.from('quicklinks').insert({
       title,
       url,
       icon,
       order_index: links.length,
+      org_id: organization.id,
     });
 
     if (!error) {

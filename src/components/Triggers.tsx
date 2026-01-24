@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Zap, Trash2, Play, Pencil } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useOrg } from '../hooks/useOrg';
 
 interface Trigger {
   id: string;
@@ -12,6 +13,7 @@ interface Trigger {
 }
 
 export function Triggers() {
+  const { organization } = useOrg();
   const [triggers, setTriggers] = useState<Trigger[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -40,13 +42,14 @@ export function Triggers() {
   };
 
   const addTrigger = async () => {
-    if (!name || !webhookUrl) return;
+    if (!name || !webhookUrl || !organization) return;
 
     const { error } = await supabase.from('triggers').insert({
       name,
       webhook_url: webhookUrl,
       method,
       description,
+      org_id: organization.id,
     });
 
     if (!error) {

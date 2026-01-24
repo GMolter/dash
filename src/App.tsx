@@ -14,29 +14,36 @@ import { PasteList } from './pages/PasteList';
 import { NotFound } from './pages/NotFound';
 import Admin from './pages/Admin';
 import { UtilitiesHub } from './components/UtilitiesHub';
-import { Home, Wrench, Shield, Menu, X, AlertTriangle } from 'lucide-react';
-
-// ✅ NEW imports (adjust path if needed)
 import { ProjectsCenterApp } from './pages/ProjectsCenterApp';
 import { ProjectDashboard } from './pages/ProjectDashboard';
-
+import { Onboarding } from './pages/Onboarding';
+import { OrgSetup } from './pages/OrgSetup';
+import { OrganizationPage } from './pages/OrganizationPage';
+import { ProfileSettings } from './pages/ProfileSettings';
+import { useAuth } from './hooks/useAuth';
+import { useOrg } from './hooks/useOrg';
+import { Home, Wrench, Menu, X, AlertTriangle, Building2, UserCircle } from 'lucide-react';
 
 type View =
   | { type: 'home' }
   | { type: 'utilities' }
   | { type: 'admin' }
+  | { type: 'organization' }
+  | { type: 'profile' }
   | { type: 'tool'; tool: string }
   | { type: 'redirect'; code: string }
   | { type: 'secret'; code: string }
   | { type: 'paste'; code: string }
   | { type: 'paste-list' }
-  // ✅ NEW views
   | { type: 'projects-center' }
   | { type: 'project-dashboard'; id: string };
 
 type BannerState = { enabled: boolean; text: string };
 
 function App() {
+  const { user, loading: authLoading } = useAuth();
+  const { profile, organization, loading: orgLoading } = useOrg();
+
   const [view, setView] = useState<View>({ type: 'home' });
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     try {
@@ -48,8 +55,6 @@ function App() {
   });
 
   const [currentTime, setCurrentTime] = useState(new Date());
-
-  // Banner comes from the same API Admin uses
   const [banner, setBanner] = useState<BannerState>({ enabled: false, text: '' });
 
   useEffect(() => {
@@ -60,12 +65,9 @@ function App() {
   useEffect(() => {
     try {
       localStorage.setItem('sidebarOpen', String(sidebarOpen));
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, [sidebarOpen]);
 
-  // Load banner from /api/public/settings
   useEffect(() => {
     let cancelled = false;
 
@@ -87,7 +89,6 @@ function App() {
 
     loadBanner();
 
-    // Refresh when tab regains focus (so after saving in Admin it shows on Home)
     const onVis = () => {
       if (document.visibilityState === 'visible') loadBanner();
     };
@@ -99,19 +100,11 @@ function App() {
     };
   }, []);
 
-  // Route resolution order:
-  // 1) Known app routes
-  // 2) Known prefixes (/s/:code, /p/:code)
-  // 3) Unknown single-segment -> URL shortener redirect lookup
-  // 4) Otherwise -> home
   useEffect(() => {
     const resolve = () => {
       const path = window.location.pathname || '/';
-
-      // Normalize double slashes etc.
       const cleanPath = path.replace(/\/+$/, '') || '/';
 
-      // ✅ Projects routes (standalone)
       if (cleanPath === '/projects') {
         setView({ type: 'projects-center' });
         return;
@@ -125,23 +118,30 @@ function App() {
 
       if (cleanPath === '/admin') {
         setView({ type: 'admin' });
+        if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
+        return;
+      }
 
-        // QoL: keep the URL bar clean for the admin panel.
+      if (cleanPath === '/organization') {
+        setView({ type: 'organization' });
+        if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
+        return;
+      }
+
+      if (cleanPath === '/profile') {
+        setView({ type: 'profile' });
         if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
         return;
       }
 
       if (cleanPath === '/utilities') {
         setView({ type: 'utilities' });
-
-        // QoL: keep the URL bar clean for the utilities hub.
         if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
         return;
       }
 
       if (cleanPath === '/p' || cleanPath === '/pastes') {
         setView({ type: 'paste-list' });
-
         if (window.location.pathname !== '/') window.history.replaceState({}, '', '/');
         return;
       }
@@ -153,7 +153,6 @@ function App() {
         return;
       }
 
-      // Legacy secret route
       if (cleanPath.startsWith('/secret/')) {
         const code = cleanPath.replace('/secret/', '').split('/')[0];
         if (code) setView({ type: 'secret', code });
@@ -168,7 +167,6 @@ function App() {
         return;
       }
 
-      // Legacy paste route
       if (cleanPath.startsWith('/paste/')) {
         const code = cleanPath.replace('/paste/', '').split('/')[0];
         if (code) setView({ type: 'paste', code });
@@ -176,9 +174,8 @@ function App() {
         return;
       }
 
-      // Unknown single segment (e.g. /abc123) -> check short_urls
       const maybeCode = cleanPath.replace(/^\//, '');
-      if (maybeCode && !['home', 'admin', 'utilities', 'p', 'pastes', 'projects'].includes(maybeCode)) {
+      if (maybeCode && !['home', 'admin', 'utilities', 'p', 'pastes', 'projects', 'organization', 'profile'].includes(maybeCode)) {
         setView({ type: 'redirect', code: maybeCode });
         return;
       }
@@ -231,7 +228,8 @@ function App() {
   const navItems = [
     { id: 'home', label: 'Home', icon: <Home className="w-5 h-5" />, view: { type: 'home' as const } },
     { id: 'utilities', label: 'Utilities', icon: <Wrench className="w-5 h-5" />, view: { type: 'utilities' as const } },
-    { id: 'admin', label: 'Admin', icon: <Shield className="w-5 h-5" />, view: { type: 'admin' as const } },
+    { id: 'organization', label: 'Organization', icon: <Building2 className="w-5 h-5" />, view: { type: 'organization' as const } },
+    { id: 'profile', label: 'Profile', icon: <UserCircle className="w-5 h-5" />, view: { type: 'profile' as const } },
   ];
 
   const renderHome = () => (
@@ -273,7 +271,19 @@ function App() {
     );
   };
 
-  // ✅ Standalone projects app pages (no main header/sidebar shell)
+  const isPublicRoute = view.type === 'redirect' || view.type === 'secret' || view.type === 'paste' || view.type === 'paste-list';
+
+  if (authLoading || orgLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-slate-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (view.type === 'projects-center') {
     return <ProjectsCenterApp onOpenProject={(id) => navigateTo(`/projects/${id}`)} />;
   }
@@ -282,11 +292,29 @@ function App() {
     return <ProjectDashboard projectId={view.id} />;
   }
 
+  if (isPublicRoute) {
+    return (
+      <>
+        {view.type === 'redirect' && <URLRedirect shortCode={view.code} />}
+        {view.type === 'secret' && <SecretView secretCode={view.code} />}
+        {view.type === 'paste' && <PasteView pasteCode={view.code} />}
+        {view.type === 'paste-list' && <PasteList />}
+      </>
+    );
+  }
+
+  if (!user) {
+    return <Onboarding />;
+  }
+
+  if (!profile?.org_id) {
+    return <OrgSetup />;
+  }
+
   return (
     <div className="min-h-screen text-white relative overflow-hidden">
       <AnimatedBackground />
       <div className="relative z-10 min-h-screen flex flex-col">
-        {/* Header */}
         <header className="relative z-20 border-b border-slate-800/50 bg-slate-950/80 backdrop-blur">
           <div className="px-10 py-7 flex items-start justify-between">
             <div className="flex items-start gap-8">
@@ -307,12 +335,21 @@ function App() {
                   {getGreeting()} · {formatDate(currentTime)} ·{' '}
                   <span className="font-mono text-slate-200">{formatTime(currentTime)}</span>
                 </p>
+
+                {organization && (
+                  <div className="mt-2 flex items-center gap-2 text-sm text-slate-400">
+                    <div
+                      className="w-3 h-3 rounded"
+                      style={{ backgroundColor: organization.icon_color }}
+                    />
+                    {organization.name}
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </header>
 
-        {/* Maintenance Banner */}
         {banner.enabled && banner.text?.trim() && (
           <div className="relative z-20 px-10 pt-5">
             <div className="rounded-3xl border border-amber-500/25 bg-amber-500/12 backdrop-blur px-6 py-5 flex items-start gap-4">
@@ -327,7 +364,6 @@ function App() {
         )}
 
         <div className="relative z-10 flex flex-1">
-          {/* Sidebar */}
           {sidebarOpen && (
             <aside className="w-72 border-r border-slate-800/50 bg-slate-950/40 backdrop-blur">
               <nav className="p-5 space-y-3">
@@ -335,12 +371,9 @@ function App() {
                   const active =
                     (view.type === 'home' && item.id === 'home') ||
                     (view.type === 'utilities' && item.id === 'utilities') ||
-                    (view.type === 'admin' && item.id === 'admin') ||
-                    (view.type === 'tool' && item.id === 'utilities') ||
-                    (view.type === 'secret' && item.id === 'utilities') ||
-                    (view.type === 'paste' && item.id === 'utilities') ||
-                    (view.type === 'paste-list' && item.id === 'utilities') ||
-                    (view.type === 'redirect' && item.id === 'utilities');
+                    (view.type === 'organization' && item.id === 'organization') ||
+                    (view.type === 'profile' && item.id === 'profile') ||
+                    (view.type === 'tool' && item.id === 'utilities');
 
                   return (
                     <button
@@ -361,15 +394,12 @@ function App() {
             </aside>
           )}
 
-          {/* Main Content */}
-          <main className="flex-1 p-10">
+          <main className="flex-1 p-10 overflow-y-auto">
             {view.type === 'home' && renderHome()}
             {view.type === 'utilities' && renderUtilities()}
             {view.type === 'tool' && renderUtilities()}
-            {view.type === 'redirect' && <URLRedirect shortCode={view.code} />}
-            {view.type === 'secret' && <SecretView secretCode={view.code} />}
-            {view.type === 'paste' && <PasteView pasteCode={view.code} />}
-            {view.type === 'paste-list' && <PasteList />}
+            {view.type === 'organization' && <OrganizationPage />}
+            {view.type === 'profile' && <ProfileSettings />}
             {view.type === 'admin' && <Admin />}
             {view.type === 'tool' && view.tool === 'notfound' && <NotFound />}
           </main>
@@ -381,7 +411,6 @@ function App() {
 
 export default App;
 
-// helper used above
 function navigateTo(path: string) {
   window.history.pushState({}, '', path);
   window.dispatchEvent(new PopStateEvent('popstate'));
