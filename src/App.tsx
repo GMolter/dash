@@ -41,7 +41,7 @@ type View =
 type BannerState = { enabled: boolean; text: string };
 
 function App() {
-  const { loading: authLoading, hydrated, user, orgId, orgLoading, authError, orgError } = useAuth();
+  const { loading: authLoading, hydrated, user, orgId, orgLoading } = useAuth();
 
   const [view, setView] = useState<View>({ type: 'home' });
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -251,32 +251,34 @@ function App() {
     view.type === 'paste-list' ||
     view.type === 'redirect';
 
-  // ✅ Gate the main dashboard behind auth + org membership.
-  // Public routes (secrets/pastes/redirects) bypass this.
-  if (!isPublicRoute) {
-  // ✅ Only block the entire UI during the FIRST ever hydrate.
-  // After hydrated=true, orgLoading can happen in the background without nuking the UI.
-  if (!hydrated && (authLoading || orgLoading)) {
-    return (
-      <div className="h-screen w-screen flex items-center justify-center">
-        <div className="rounded-3xl bg-zinc-900 px-6 py-5 text-center max-w-md w-full text-white">
-          <h2 className="text-lg font-semibold text-white">Loading...</h2>
-          <p className="text-sm text-white/70">Preparing your workspace.</p>
-
-          {(authError || orgError) && (
-            <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-amber-100 text-sm text-left">
-              {authError ? `Auth error: ${authError}` : `Org error: ${orgError}`}
-            </div>
-          )}
-        </div>
-      </div>
-    );
+  // ✅ Standalone projects app pages (no main header/sidebar shell)
+  if (view.type === 'projects-center') {
+    return <ProjectsCenterApp onOpenProject={(id) => navigateTo(`/projects/${id}`)} />;
+  }
+  if (view.type === 'project-dashboard') {
+    return <ProjectDashboard projectId={view.id} />;
   }
 
-  if (!user) return <Onboarding />;
-  if (!orgId) return <OrgSetup />;
-}
+  // ✅ Public routes (no auth/org required)
+  if (view.type === 'redirect') return <URLRedirect shortCode={view.code} />;
+  if (view.type === 'secret') return <SecretView secretCode={view.code} />;
+  if (view.type === 'paste') return <PasteView pasteCode={view.code} />;
+  if (view.type === 'paste-list') return <PasteList />;
 
+  // ✅ Gate: DO NOT show any "Loading" UI
+  // During initial hydrate, render a silent black background (no card, no text).
+  if (!isPublicRoute) {
+    if (!hydrated && (authLoading || orgLoading)) {
+      return (
+        <div className="min-h-screen bg-black text-white relative overflow-x-hidden">
+          <AnimatedBackground />
+        </div>
+      );
+    }
+
+    if (!user) return <Onboarding />;
+    if (!orgId) return <OrgSetup />;
+  }
 
   const renderHome = () => (
     <div className="w-full">
@@ -291,7 +293,10 @@ function App() {
     if (view.type === 'tool') {
       return (
         <div className="space-y-6">
-          <button onClick={() => setView({ type: 'utilities' })} className="text-slate-300 hover:text-white flex items-center gap-2">
+          <button
+            onClick={() => setView({ type: 'utilities' })}
+            className="text-slate-300 hover:text-white flex items-center gap-2"
+          >
             ← Back to Utilities
           </button>
 
@@ -308,15 +313,6 @@ function App() {
 
     return <UtilitiesHub tools={utilities} onOpenTool={(toolId) => setView({ type: 'tool', tool: toolId })} />;
   };
-
-  // ✅ Standalone projects app pages (no main header/sidebar shell)
-  if (view.type === 'projects-center') {
-    return <ProjectsCenterApp onOpenProject={(id) => navigateTo(`/projects/${id}`)} />;
-  }
-
-  if (view.type === 'project-dashboard') {
-    return <ProjectDashboard projectId={view.id} />;
-  }
 
   return (
     <div className="min-h-screen text-white relative overflow-x-hidden">
@@ -335,10 +331,13 @@ function App() {
               </button>
 
               <div className="pt-1">
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold tracking-tight text-white">Olio Workstation</h1>
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold tracking-tight text-white">
+                  Olio Workstation
+                </h1>
 
                 <p className="mt-2 sm:mt-3 md:mt-4 text-sm sm:text-base md:text-xl text-slate-300">
-                  {getGreeting()} · {formatDate(currentTime)} · <span className="font-mono text-slate-200">{formatTime(currentTime)}</span>
+                  {getGreeting()} · {formatDate(currentTime)} ·{' '}
+                  <span className="font-mono text-slate-200">{formatTime(currentTime)}</span>
                 </p>
               </div>
             </div>
@@ -361,7 +360,11 @@ function App() {
           {/* Sidebar (mobile overlay) */}
           {sidebarOpen && (
             <>
-              <div className="fixed inset-0 bg-black/50 z-20 md:hidden" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
+              <div
+                className="fixed inset-0 bg-black/50 z-20 md:hidden"
+                onClick={() => setSidebarOpen(false)}
+                aria-hidden="true"
+              />
 
               <aside className="fixed md:static inset-y-0 left-0 z-30 md:z-auto w-72 border-r border-slate-800/50 bg-slate-950/70 md:bg-slate-950/40 backdrop-blur">
                 <nav className="p-4 sm:p-5 space-y-3">
@@ -384,7 +387,9 @@ function App() {
                           if (window.innerWidth < 768) setSidebarOpen(false);
                         }}
                         className={`w-full flex items-center gap-3 px-4 sm:px-5 py-3.5 sm:py-4 rounded-2xl transition-colors ${
-                          active ? 'bg-blue-500/20 border border-blue-500/30 text-blue-200' : 'hover:bg-slate-800/40 text-slate-200'
+                          active
+                            ? 'bg-blue-500/20 border border-blue-500/30 text-blue-200'
+                            : 'hover:bg-slate-800/40 text-slate-200'
                         }`}
                       >
                         {item.icon}
@@ -403,10 +408,6 @@ function App() {
             {view.type === 'utilities' && renderUtilities()}
             {view.type === 'tool' && renderUtilities()}
             {view.type === 'organization' && <OrganizationPage />}
-            {view.type === 'redirect' && <URLRedirect shortCode={view.code} />}
-            {view.type === 'secret' && <SecretView secretCode={view.code} />}
-            {view.type === 'paste' && <PasteView pasteCode={view.code} />}
-            {view.type === 'paste-list' && <PasteList />}
             {view.type === 'admin' && <Admin />}
             {view.type === 'tool' && view.tool === 'notfound' && <NotFound />}
           </main>
