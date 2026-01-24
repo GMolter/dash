@@ -312,9 +312,9 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen text-white relative">
+    <div className="h-screen text-white relative overflow-hidden">
       <AnimatedBackground />
-      <div className="relative z-10 min-h-screen flex flex-col">
+      <div className="relative z-10 h-full flex flex-col">
         <header className="relative z-20 border-b border-slate-800/50 bg-slate-950/80 backdrop-blur">
           <div className="px-10 py-7 flex items-start justify-between">
             <div className="flex items-start gap-8">
@@ -359,7 +359,7 @@ function App() {
           </div>
         )}
 
-        <div className="relative z-10 flex flex-1 overflow-hidden">
+        <div className="relative z-10 flex flex-1 min-h-0">
           {sidebarOpen && (
             <aside className="w-72 border-r border-slate-800/50 bg-slate-950/40 backdrop-blur">
               <nav className="p-5 space-y-3">
