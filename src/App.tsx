@@ -41,7 +41,7 @@ type View =
 type BannerState = { enabled: boolean; text: string };
 
 function App() {
-  const { loading: authLoading, hydrated, user, orgId, orgLoading } = useAuth();
+  const { loading: authLoading, hydrated, user, orgId } = useAuth();
 
   const [view, setView] = useState<View>({ type: 'home' });
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -255,29 +255,25 @@ function App() {
   if (view.type === 'projects-center') {
     return <ProjectsCenterApp onOpenProject={(id) => navigateTo(`/projects/${id}`)} />;
   }
+
   if (view.type === 'project-dashboard') {
     return <ProjectDashboard projectId={view.id} />;
   }
 
-  // ✅ Public routes (no auth/org required)
+  // ✅ Public routes are always allowed
   if (view.type === 'redirect') return <URLRedirect shortCode={view.code} />;
   if (view.type === 'secret') return <SecretView secretCode={view.code} />;
   if (view.type === 'paste') return <PasteView pasteCode={view.code} />;
   if (view.type === 'paste-list') return <PasteList />;
 
-  // ✅ Gate: DO NOT show any "Loading" UI
-  // During initial hydrate, render a silent black background (no card, no text).
+  // ✅ Gate (no full-screen loading screen)
+  // We still verify auth/org in the background, but we never show a dedicated loading page.
+  // If you're not signed in (or not in an org), we only redirect once hydration has completed.
   if (!isPublicRoute) {
-    if (!hydrated && (authLoading || orgLoading)) {
-      return (
-        <div className="min-h-screen bg-black text-white relative overflow-x-hidden">
-          <AnimatedBackground />
-        </div>
-      );
+    if (hydrated && !authLoading) {
+      if (!user) return <Onboarding />;
+      if (!orgId) return <OrgSetup />;
     }
-
-    if (!user) return <Onboarding />;
-    if (!orgId) return <OrgSetup />;
   }
 
   const renderHome = () => (
@@ -293,10 +289,7 @@ function App() {
     if (view.type === 'tool') {
       return (
         <div className="space-y-6">
-          <button
-            onClick={() => setView({ type: 'utilities' })}
-            className="text-slate-300 hover:text-white flex items-center gap-2"
-          >
+          <button onClick={() => setView({ type: 'utilities' })} className="text-slate-300 hover:text-white flex items-center gap-2">
             ← Back to Utilities
           </button>
 
@@ -331,13 +324,10 @@ function App() {
               </button>
 
               <div className="pt-1">
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold tracking-tight text-white">
-                  Olio Workstation
-                </h1>
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold tracking-tight text-white">Olio Workstation</h1>
 
                 <p className="mt-2 sm:mt-3 md:mt-4 text-sm sm:text-base md:text-xl text-slate-300">
-                  {getGreeting()} · {formatDate(currentTime)} ·{' '}
-                  <span className="font-mono text-slate-200">{formatTime(currentTime)}</span>
+                  {getGreeting()} · {formatDate(currentTime)} · <span className="font-mono text-slate-200">{formatTime(currentTime)}</span>
                 </p>
               </div>
             </div>
@@ -360,11 +350,7 @@ function App() {
           {/* Sidebar (mobile overlay) */}
           {sidebarOpen && (
             <>
-              <div
-                className="fixed inset-0 bg-black/50 z-20 md:hidden"
-                onClick={() => setSidebarOpen(false)}
-                aria-hidden="true"
-              />
+              <div className="fixed inset-0 bg-black/50 z-20 md:hidden" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
 
               <aside className="fixed md:static inset-y-0 left-0 z-30 md:z-auto w-72 border-r border-slate-800/50 bg-slate-950/70 md:bg-slate-950/40 backdrop-blur">
                 <nav className="p-4 sm:p-5 space-y-3">
@@ -387,9 +373,7 @@ function App() {
                           if (window.innerWidth < 768) setSidebarOpen(false);
                         }}
                         className={`w-full flex items-center gap-3 px-4 sm:px-5 py-3.5 sm:py-4 rounded-2xl transition-colors ${
-                          active
-                            ? 'bg-blue-500/20 border border-blue-500/30 text-blue-200'
-                            : 'hover:bg-slate-800/40 text-slate-200'
+                          active ? 'bg-blue-500/20 border border-blue-500/30 text-blue-200' : 'hover:bg-slate-800/40 text-slate-200'
                         }`}
                       >
                         {item.icon}
